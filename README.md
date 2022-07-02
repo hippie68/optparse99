@@ -106,7 +106,6 @@ struct optparse_cmd {
     char *name;
     char *about;
     char *description;
-    char *footnote;
     char *operands;
     char *usage;
     void (*function)(int, char **);
