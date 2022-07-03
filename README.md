@@ -27,7 +27,6 @@ This is a first version that might be rough around the edges or have bugs. If yo
     - [Manual parsing](#manual-parsing)
     - [Manual type-converting](#manual-type-converting)
   - [Preprocessor directives](#preprocessor-directives)
-- [Notes](#notes)
 
 # Quick example
 
@@ -55,9 +54,9 @@ int main(int argc, char *argv[]) {
     optparse_parse(&main_cmd, &argc, &argv);
 
     // Print remaining operands
-    if (argc) {
+    if (argc > 1) {
         for (int i = 0; i <= argc; i++) {
-            printf("argv[%d]: %s\n", i, argv[i]);
+            printf("argv[%d]: %s\n", i, argv[i] ? argv[i] : "NULL");
         }
     } else {
         optparse_print_help();
@@ -153,7 +152,7 @@ Structure member        | Description
 .arg_type               | If set, the parsed (single) option-argument will be converted from string to a different data type.
 .flag                   | A pointer to an integer variable that is to be used as specified by .flag_action.
 .flag_action            | Specifies what to do to with the flag variable's value.
-.function               | Points to a function that is called with the argument specified in .function_arg.
+.function               | Points to a function that is called with the argument specified in .function_arg. The pointer can be cast to void (*)(void) to suppress compiler warnings.
 .function_arg           | Tells .function which argument to use.
 .group                  | Options that share the same group value are treated as mutually exclusive.
 .hidden                 | If true, the option won't be displayed in the help screen.
@@ -213,6 +212,8 @@ How automatic decision works:
      - if .arg_type is ARG_TYPE_STR: FUNCTION_ARG_OPTION_ARG
      - if .arg_type is not ARG_TYPE_STR: FUNCTION_ARG_CONVERTED_OPTION_ARG
 
+Functions refered to by .function must be of return type void, and their argument definition must match .function_arg.
+
 ## Functions
 
 ```C
@@ -222,18 +223,25 @@ void optparse_parse(optparse_cmd *cmd, int *argc, char ***argv);
 optparse_parse() starts the parsing process. It must be called before calling any other optparse_ function. After parsing, the main() function's argc and argv will contain only operands.
 \*cmd: a pointer to the command tree's root command
 \*argc: a pointer to main()'s argc variable
-\*argv: a pointer to main()'s argv variable
+\***argv: a pointer to main()'s argv variable
 
 ```C
 void optparse_print_help(void);
 ```
 
-Prints the root command's help information. It is thought to be invoked through an option's .function member - see the [quick example](#quick-example) above.
+Prints the currently active command's help information. It can be called manually or through an option's .function member - see the [quick example](#quick-example) above.
 
+```C
+void optparse_print_help_stderr(void);
+```
+
+Same as optparse_print_help(), but it prints to stderr.
+
+```C
 void optparse_print_help_subcmd(void);
 ```
 
-optparse_print_help_subcmd() is the same as optparse_print_help(), but for subcommands. It must be called while the remaining arguments represent chained subcommand names, e.g. as a subcommand's function:
+optparse_print_help_subcmd() must be called while the remaining command line arguments represent a valid subcommand chain, e.g. as a subcommand's function:
 
 ```C
     ...
@@ -249,7 +257,7 @@ optparse_print_help_subcmd() is the same as optparse_print_help(), but for subco
 
 ### Manual parsing
 
-It is possible to manually parse arguments from inside a callback function (.function).
+It is possible to manually parse arguments from inside an option's callback function (.function).
 Inside that function, the following functions can be used:
 
 ```C
@@ -260,7 +268,19 @@ char *optparse_unshift(void);
 optparse_shift() returns the next command line argument, while optparse_unshift() puts it back. Please note that optparse_unshift() is only guaranteed to undo the most recent shift.
 Using this technique, you can parse multiple option-arguments while having full control over what exactly qualifies as a valid option-argument and when to stop.
 
-Note: If part of an option structure, the callback function should have the parameter char *, and .function_arg should be FUNCTION_ARG_OPTION_ARG. This is required to catch an option-argument the user may have entered via -oARG or --option=ARG. The function's argument will be the first command line argument, so it must be checked prior to using optparse_shift().
+The callback function should have the parameter char *, and .function_arg should be FUNCTION_ARG_OPTION_ARG (which it automatically is if .arg is specified). This is required to catch an option-argument the user may have entered via -oARG or --option=ARG. The function's argument will be the first command line argument, so it must be checked prior to using optparse_shift().
+E.g. to make an option eat and print all remaining command line arguments:
+
+```C
+void print_arg(char *arg) {
+    while (arg != NULL) {
+        printf("option-argument: %s\n", arg);
+        arg = optparse_shift();
+    }
+}
+```
+
+Note: when implementing multiple option-arguments, the first option-argument should not be optional.
 
 ### Manual type-converting
 
@@ -336,10 +356,6 @@ OPTPARSE_HELP_LETTER_CASE           | 0             | The help screen's letter c
 OPTPARSE_HELP_WORD_WRAP             | 1 (boolean)   | Enables/disables word wrap for lines longer than OPTPARSE_HELP_MAX_LINE_WIDTH.
 OPTPARSE_HELP_FLOATING_DESCRIPTIONS | 1 (boolean)   | Defines how a description is to be printed if an option is longer than OPTPARSE_HELP_MAX_DIVIDER_WIDTH; 0: print description on a separate line, 1: print description on the same line, after a single indentation.
 OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS | 1 (boolean) | Makes long options stay in a separate column even if there's no short option.
+OPTPARSE_PRINT_HELP_ON_ERROR        | 1 (boolean)   | Prints the currently active command's help screen if there's a parsing error.
 
 By disabling a feature, related code will not be compiled and structure members that are related to that feature will no longer be recognized.
-
-# Notes
-
-- To suppress compiler warnings, the function in an option's .function assignment can be prefixed with "(void (*)(void))".
-- When implementing multiple option-arguments, the first option-argument should not be optional.
