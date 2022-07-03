@@ -238,7 +238,7 @@ void optparse_print_help_stderr(void);
 Same as optparse_print_help(), but it prints to stderr.
 
 ```C
-void optparse_print_help_subcmd(void);
+void optparse_print_help_subcmd(int argc, char **argv);
 ```
 
 optparse_print_help_subcmd() must be called while the remaining command line arguments represent a valid subcommand chain, e.g. as a subcommand's function:
