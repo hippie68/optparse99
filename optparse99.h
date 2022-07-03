@@ -46,6 +46,9 @@
 // Makes long options stay in a separate column even if there's no short option
 //#define OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS true
 
+// Prints the currently active command's help screen if there's a parsing error
+//#define OPTPARSE_PRINT_HELP_ON_ERROR true
+
 /// Option structure -----------------------------------------------------------
 
 #define END_OF_OPTIONS -1 // Marks the end of an option array
@@ -150,11 +153,16 @@ struct optparse_cmd {
 // Modifies argc and argv to only contain non-option arguments.
 void optparse_parse(struct optparse_cmd *cmd, int *argc, char ***argv);
 
-// Prints usage information and lists available options and their descriptions.
+// Prints the currently active command's usage information and lists available
+// options and their descriptions. Exits with exit status EXIT_SUCCESS.
 void optparse_print_help(void);
 
+// Same as optparse_print_help, but prints to stderr. Exits with EXIT_FAILURE.
+void optparse_print_help_stderr(void);
+
 #if OPTPARSE_SUBCOMMANDS
-// Same as optparse_print_help(), but parses the command line for subcommands.
+// Prints a subcommand's help by parsing remaining operands. To be used as a
+// command structure's .function member.
 void optparse_print_help_subcmd(int argc, char **argv);
 #endif
 

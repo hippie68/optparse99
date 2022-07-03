@@ -3,6 +3,7 @@
 
 #include "optparse99.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -10,12 +11,17 @@
 #include <stdio.h>
 #include <string.h>
 
+#define MAX_SUBCMD_DEPTH 16
 #define MUTUALLY_EXCLUSIVE_GROUPS_MAX 16
 #define PRINT_BUFFER_SIZE 8192
 
 static struct optparse_cmd *optparse_main_cmd; // The command tree's root
 static char **args; // Contains the current state of argv while parsing
 static int args_index; // Keeps track of the currently parsed argument's index
+#if OPTPARSE_SUBCOMMANDS
+static struct optparse_cmd *active_cmd; // Keeps track of the currently running command
+#endif
+static FILE *help_stream; // The stream help information is printed to
 
 #ifndef OPTPARSE_HELP_INDENTATION_WIDTH
 #define OPTPARSE_HELP_INDENTATION_WIDTH 2
@@ -43,6 +49,9 @@ static int args_index; // Keeps track of the currently parsed argument's index
 #endif
 #ifndef OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS
 #define OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS true
+#endif
+#ifndef OPTPARSE_PRINT_HELP_ON_ERROR
+#define OPTPARSE_PRINT_HELP_ON_ERROR true
 #endif
 
 /// Function "strtox" ----------------------------------------------------------
@@ -280,13 +289,16 @@ int strtox(char *str, void *x, enum strtox_conversion_type conversion_type) {
 
 /// Private functions ----------------------------------------------------------
 
-// Prints an error message and quits.
+// Prints an error message and quits. Should be used for parsing errors only.
 static void optparse_error(char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
     va_end(ap);
-    exit(1);
+#if OPTPARSE_PRINT_HELP_ON_ERROR
+    optparse_print_help_stderr(); // Print the currently active command's help
+#endif
+    exit(EXIT_FAILURE);
 }
 
 // Safely prints to a buffer of size PRINT_BUFFER_SIZE;
@@ -740,6 +752,9 @@ static void parse(int *argc, char ***argv, struct optparse_cmd *cmd) {
     args = *argv;
     args_index = 1;
     *argc = 1; // to keep argv[0]
+#if OPTPARSE_SUBCOMMANDS
+    active_cmd = cmd;
+#endif
 
     int ignore_options = 0;
     while (args[args_index] != NULL) {
@@ -803,6 +818,10 @@ static void parse(int *argc, char ***argv, struct optparse_cmd *cmd) {
 
 #if OPTPARSE_HELP_WORD_WRAP
 // Prints a string using automatic word-wrapping.
+// stream: the stream the string will be printed to
+// str: the string to be printed
+// first_line_indent: the known column at which printing starts
+// indent: the indentation width (starting from line 2)
 static void blockprint(FILE *stream, char *str, int first_line_indent,
     int indent, int end) {
     if (str == NULL || str[0] == '\0') {
@@ -931,15 +950,15 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd) {
     }
 
     // Print command name(s)
-    bprintf(buffer, " %s", optparse_main_cmd->name);
 #if OPTPARSE_SUBCOMMANDS
     if (subcmd_chain) {
         while (*subcmd_chain) {
             bprintf(buffer, " %s", *subcmd_chain);
             subcmd_chain++;
         }
-    }
+    } else
 #endif
+    bprintf(buffer, " %s", optparse_main_cmd->name);
 
     // Print command's options
     if (cmd->options) {
@@ -1151,12 +1170,12 @@ static void print_subcommands(FILE *stream, struct optparse_cmd *subcmd,
         char buffer[PRINT_BUFFER_SIZE] = { 0 };
         bprintf(buffer, "%*c%s%*c", OPTPARSE_HELP_INDENTATION_WIDTH, ' ',
             subcmd->name, OPTPARSE_HELP_INDENTATION_WIDTH, ' ');
-        fprintf(stream, buffer);
+        fprintf(stream, "%s", buffer);
 
         size_t len = strlen(buffer);
         if (len < divider_width) {
             len = divider_width - len;
-            fprintf(stream, "%*c", len, ' ');
+            fprintf(stream, "%*c", (int) len, ' ');
         }
         blockprint(stream, subcmd->about, len, divider_width,
             OPTPARSE_HELP_MAX_LINE_WIDTH);
@@ -1168,10 +1187,10 @@ static void print_subcommands(FILE *stream, struct optparse_cmd *subcmd,
 
 // Prints a command's complete help information: about, usage, description,
 // options, subcommands.
-// cmd_chain: a NULL-terminated array that contains a valid subcommand chain
+// cmd_chain: a NULL-terminated array that contains a valid command chain
 #if OPTPARSE_SUBCOMMANDS
 static void print_help(FILE *stream, struct optparse_cmd *cmd,
-    char **subcmd_chain) {
+    char **cmd_chain) {
 #else
 static void print_help(FILE *stream, struct optparse_cmd *cmd) {
 #endif
@@ -1181,7 +1200,7 @@ static void print_help(FILE *stream, struct optparse_cmd *cmd) {
 
     // Print command's usage
 #if OPTPARSE_SUBCOMMANDS
-    print_usage(stream, cmd, subcmd_chain);
+    print_usage(stream, cmd, cmd_chain);
 #else
     print_usage(stream, cmd);
 #endif
@@ -1232,36 +1251,91 @@ static void print_help(FILE *stream, struct optparse_cmd *cmd) {
     }
 #endif
 
-    exit(0);
+    if (stream == stdout) {
+        exit(EXIT_SUCCESS);
+    } else {
+        exit(EXIT_FAILURE);
+    }
 }
 
 #if OPTPARSE_SUBCOMMANDS
-// Companion function for optparse_print_help_subcmd(); parses remaining
-// operands, which must represent a valid chain of subcommands.
-// Return value: the subcommand the chain leads to.
-static struct optparse_cmd *find_subcmd(struct optparse_cmd *cmd, char **argv) {
+// Parses a command chain and returns the subcommmand the chain leads to.
+// Errors out if the chain is invalid.
+static struct optparse_cmd *read_cmd_chain(struct optparse_cmd *cmd,
+    char **argv) {
     if (*argv) {
         if (cmd->subcommands) {
             struct optparse_cmd *subcmd = cmd->subcommands;
             while (subcmd->name != END_OF_SUBCOMMANDS) {
                 if (strcmp(subcmd->name, *argv) == 0) {
-                    return find_subcmd(subcmd, ++argv);
+                    return read_cmd_chain(subcmd, ++argv);
                 }
                 subcmd++;
             }
         }
 
         optparse_error("Unknown command: \"%s\"\n", *argv);
+        return NULL;
     } else {
         return cmd;
     }
 }
+
+// Finds a command in a command tree, building its full command chain string.
+// haystack: the current command tree
+// needle: the command to be found
+// cmd_chain: array in which the command chain is built
+// index: cmd_chain's current index
+static int build_cmd_chain(struct optparse_cmd *haystack,
+    struct optparse_cmd *needle, char **cmd_chain, int index) {
+    cmd_chain[index] = haystack->name;
+
+    if (haystack == needle) {
+        return 1;
+    } else if (haystack->subcommands) {
+        struct optparse_cmd *subcmd = haystack->subcommands;
+        while (subcmd->name != END_OF_SUBCOMMANDS) {
+            if (build_cmd_chain(subcmd, needle, cmd_chain, index + 1)) {
+                return 1;
+            }
+            subcmd++;
+        }
+    }
+
+    return 0;
+}
+
+#ifndef NDEBUG
+// Returns a command tree's subcommand depth.
+static int subcmd_depth(struct optparse_cmd *cmd, int depth) {
+    if (cmd->subcommands) {
+        int max_depth = 0;
+        cmd = cmd->subcommands;
+        while (cmd->name != END_OF_SUBCOMMANDS) {
+            int next_depth = subcmd_depth(cmd, depth + 1);
+            if (next_depth > max_depth) {
+                max_depth = next_depth;
+            }
+            cmd++;
+        }
+        return max_depth;
+    } else {
+        return depth;
+    }
+}
+#endif
 #endif
 
 /// Public functions -----------------------------------------------------------
 
 // Parses command line options as described in the provided command structure.
 void optparse_parse(struct optparse_cmd *cmd, int *argc, char ***argv) {
+#if OPTPARSE_SUBCOMMANDS
+    // Make sure the subcommand tree is not deeper than allowed
+    assert(subcmd_depth(cmd, 0) < MAX_SUBCMD_DEPTH);
+#endif
+
+    help_stream = stdout;
     optparse_main_cmd = cmd;
     if (optparse_main_cmd) {
         parse(argc, argv, optparse_main_cmd);
@@ -1294,21 +1368,41 @@ char *optparse_unshift(void) {
     }
 }
 
-// Prints the main command's help.
+// Prints the currently active command's help information.
 void optparse_print_help(void) {
 #if OPTPARSE_SUBCOMMANDS
-    print_help(stdout, optparse_main_cmd, NULL);
+    if (active_cmd != optparse_main_cmd && optparse_main_cmd->subcommands) {
+        char *cmd_chain[MAX_SUBCMD_DEPTH] = { 0 };
+        build_cmd_chain(optparse_main_cmd, active_cmd, cmd_chain, 0);
+        print_help(help_stream, active_cmd, cmd_chain);
+    } else {
+        print_help(help_stream, optparse_main_cmd, NULL);
+    }
 #else
-    print_help(stdout, optparse_main_cmd);
+    print_help(help_stream, optparse_main_cmd);
 #endif
 }
 
+// Prints the currently active command's help information to stderr.
+void optparse_print_help_stderr(void) {
+    help_stream = stderr;
+    optparse_print_help();
+}
+
 #if OPTPARSE_SUBCOMMANDS
-// Prints a subcommand's help by parsing remaining operands.
+// Prints a subcommand's help by parsing remaining operands. To be used as a
+// command structure's .function member.
 void optparse_print_help_subcmd(int argc, char **argv) {
-    argv++; // To ignore the program's name
+    argv++; // To ignore the program's file name
     if (*argv) {
-        print_help(stdout, find_subcmd(optparse_main_cmd, argv), argv);
+        struct optparse_cmd *subcmd = read_cmd_chain(optparse_main_cmd, argv);
+
+        char *cmd_chain[MAX_SUBCMD_DEPTH] = { optparse_main_cmd->name };
+        for (int i = 1; *argv != NULL; i++, argv++) {
+            cmd_chain[i] = *argv;
+        }
+
+        print_help(stdout, subcmd, cmd_chain);
     } else {
         print_help(stdout, optparse_main_cmd, NULL);
     }
