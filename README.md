@@ -80,18 +80,18 @@ Options:
 
 # Documentation
 
-Optparse99 is based on two types of structures: commands and options. Each command can have a set of options and a set of subcommands, the latter which can be nested tree-like. The root of the tree is always the program's command itself.
+Optparse99 is based on two types of structures: commands and options. Each command can have a set of options and a set of subcommands, the latter which can be nested tree-like. The root of the tree is always the program's command itself.  
 Command and option structures are to be thought of as sets of instructions. Most structure members are optional and, by making use of C99's designated initializers, do not need to be specified. Non-specified members are initialized with 0 (NULL), which for enumeration types is the default value.
 
 Both options and subcommands are arrays that are constructed by compound literals and must end with the element { END_OF_OPTIONS } and { END_OF_SUBCOMMANDS }, respectively:
 
 ```C
 struct optparse_cmd main_cmd = {
-    .options = (struct optparse_opt []) = {
+    .options = (struct optparse_opt []) {
         { ... },
         { END_OF_OPTIONS },
     },
-    .subcommands = (struct optparse_cmd []) = {
+    .subcommands = (struct optparse_cmd []) {
         { ... },
         { END_OF_SUBCOMMANDS },
     },
