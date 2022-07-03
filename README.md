@@ -220,10 +220,10 @@ Functions refered to by .function must be of return type void, and their argumen
 void optparse_parse(optparse_cmd *cmd, int *argc, char ***argv);
 ```
 
-optparse_parse() starts the parsing process. It must be called before calling any other optparse_ function. After parsing, the main() function's argc and argv will contain only operands.
-\*cmd: a pointer to the command tree's root command
-\*argc: a pointer to main()'s argc variable
-\***argv: a pointer to main()'s argv variable
+optparse_parse() starts the parsing process. It must be called before calling any other optparse_ function. After parsing, the main() function's argc and argv will contain only operands.  
+- *cmd: a pointer to the command tree's root command  
+- *argc: a pointer to main()'s argc variable  
+- ***argv: a pointer to main()'s argv variable
 
 ```C
 void optparse_print_help(void);
