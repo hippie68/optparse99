@@ -223,7 +223,7 @@ Structure member          | Description
 `.description`            | The option's description, whether short or in-depth.
 * At least one of them must be specified.
 
-### Allowed values for .data_type
+### Allowed values for .arg_data_type
 
 Value                     | Conversion type
 ------------------------- | ------------------
