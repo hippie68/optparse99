@@ -992,7 +992,7 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd)
     fprintf(stream, "USAGE:");
 #endif
 
-    char buffer[PRINT_BUFFER_SIZE];
+    char buffer[PRINT_BUFFER_SIZE] = { 0 };
 
     // If a custom usage string is provided, print it and return.
     if (cmd->usage) {
