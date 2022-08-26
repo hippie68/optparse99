@@ -211,7 +211,7 @@ Structure member          | Description
 ------------------------- | -------------------------
 `.short_name` (required*) | The short option character.
 `.long_name` (required*)  | The long option string (without leading "--").
-`.arg`                    | If specified, it means the option has one or more option-arguments. The string is displayed as-is in the help screen. If it begins with "\[", the option-argument is regarded as optional.
+`.arg_name`                    | If specified, it means the option has one or more option-arguments. The string is displayed as-is in the help screen. If it begins with "\[", the option-argument is regarded as optional.
 `.arg_data_type`          | If set, the parsed option-argument (char *) will be converted to a different data type.
 `.arg_dest`               | The memory location the (type-converted) option-argument is saved to.
 `.flag`                   | A pointer to an integer variable that is to be used as specified by .flag_type.
