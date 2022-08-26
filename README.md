@@ -410,7 +410,7 @@ Macro                                 | Default value | Description
 `OPTPARSE_HELP_INDENTATION_WIDTH`     | 2             | The help screen's indentation width, in characters.
 `OPTPARSE_HELP_MAX_DIVIDER_WIDTH`     | 32            | Maximum distance between the help screen's left edge and option descriptions.
 `OPTPARSE_HELP_MAX_LINE_WIDTH`        | 80            | Maximum line width for word wrapping.
-`OPTPARSE_HELP_USAGE_STYLE`           | 1             | Style used for automatic usage generation; 0: short, 1: verbose.
+`OPTPARSE_HELP_USAGE_STYLE`           | 0             | Style used for automatic usage generation; 0: short, 1: verbose.
 `OPTPARSE_HELP_USAGE_OPTIONS_STRING`  | "OPTIONS"     | Placeholder string to be displayed if OPTPARSE_HELP_USAGE_STYLE is 0.
 `OPTPARSE_HELP_LETTER_CASE`           | 0             | The help screen's letter case; 0: capitalized, 1: lower, 2: upper.
 `OPTPARSE_HELP_WORD_WRAP`             | 1 (boolean)   | Enables/disables word wrap for lines longer than OPTPARSE_HELP_MAX_LINE_WIDTH.
