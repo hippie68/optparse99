@@ -266,18 +266,17 @@ Value                          | Result
 Value                          | Function declaration and internal call
 ------------------------------ | --------------------------------------
 `FUNCTION_TYPE_AUTO` (default) | Automatically decide (default)
-`FUNCTION_TYPE_TARG`           | TARG means "type-converted option-argument" (type as specified in .arg_data_type).\ndeclaration: void f(DATA_TYPE);\ncall: f(TARG);
-`FUNCTION_TYPE_OARG`           | OARG means "original option-argument".\ndeclaration: void f(char *);\ncall: f(OARG);
-`FUNCTION_TYPE_VOID`           | declaration: void f(void);\ncall: f();
+`FUNCTION_TYPE_TARG`           | TARG means "type-converted option-argument" (type as specified in .arg_data_type).<br>declaration: void f(DATA_TYPE);<br>call: f(TARG);
+`FUNCTION_TYPE_OARG`           | OARG means "original option-argument".<br>declaration: void f(char *);<br>call: f(OARG);
+`FUNCTION_TYPE_VOID`           | declaration: void f(void);<br>call: f();
 
 How automatic decision works:
    - if .arg_name is set:
-     - if .arg_data_type
-   - if .arg is set:
-     - if .dest_type is DATA_TYPE_STR: FUNCTION_TYPE_ARG
-     - if .dest_type is not DATA_TYPE_STR: FUNCTION_TYPE_DEST
+     - if .arg_data_type is set: FUNCTION_TYPE_TARG
+     - else:                     FUNCTION_TYPE_OARG
+   - else:                       FUNCTION_TYPE_VOID
 
-Functions refered to by .function must be of return type void, and their argument definition must match .function_arg.
+Functions refered to by .function must be of return type void, and their declaration must match the one specified by .function_type.
 
 ## Functions
 
@@ -340,7 +339,7 @@ char *optparse_unshift(void);
 optparse_shift() returns the next command line argument, while optparse_unshift() puts it back. Please note that optparse_unshift() is only guaranteed to undo the most recent shift.
 Using this technique, you can parse multiple option-arguments while having full control over what exactly qualifies as a valid option-argument and when to stop.
 
-The callback function must have the single parameter char *, and .function_arg must be FUNCTION_TYPE_OARG. The function's argument will be the first command line argument, so it must be checked prior to using optparse_shift().
+The callback function must have the single parameter char *, and .function_type must be FUNCTION_TYPE_OARG. The function's argument will be the first command line argument, so it must be checked prior to using optparse_shift().
 E.g. to make an option eat and print all remaining command line arguments:
 
 ```C
