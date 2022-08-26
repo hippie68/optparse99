@@ -4,22 +4,22 @@ A C99+ option parser.
   - Supports both short and long options.
     - Short options are POSIX-compliant (-o ARG, -oARG, -asdfoARG).
     - Long options follow the GNU standard (--option ARG, --option=ARG).
-  - The order of options and operands does not matter.
+  - The order of options and operands (non-options) does not matter.
   - Supports the "end of options" delimiter (--).
   - Can set integer flags (true, false, increment, decrement).
   - Can type-convert and store option-arguments.
   - Supports subcommands and nested subcommands.
-  - Options and commands/subcommands can call functions ("callbacks").
+  - Options and commands/subcommands can call functions ("callbacks") with or without arguments.
   - Mutually exclusive options.
   - A nicely-formatted, customizable help screen with word-wrapping.
   - Provides functions for easy manual parsing (e.g. to implement multiple option-arguments).
   - Provides function "strtox()" for manual type-conversion.
   - Features can be toggled to only compile necessary code.
 
-This is a first version that might be rough around the edges or have bugs. If you want to help polish it or report bugs, please create an issue at https://github.com/hippie68/optparse99/issues.
+The code is still considered work-in-progress: it may be rough around the edges and have bugs. If you like the ideas and want to help polish them or report bugs, please create an issue at https://github.com/hippie68/optparse99/issues.
 
 # Index
-- [Quick example](#quick-example)
+- [Basic example](#basic-example)
 - [Documentation](#documentation)
   - [Command structure](#command-structure)
   - [Option structure](#option-structure)
@@ -28,39 +28,95 @@ This is a first version that might be rough around the edges or have bugs. If yo
     - [Manual type-converting](#manual-type-converting)
   - [Preprocessor directives](#preprocessor-directives)
 
-# Quick example
+# Basic example
 
 ```C
 #include "optparse99.h"
-#include <stdio.h>
 
-int main(int argc, char *argv[]) {
+#include <stdint.h> // For uint16_t
+#include <stdio.h>
+#include <stdlib.h> // For exit()
+
+int verbose;
+uint16_t bufsize = 4096;
+char *filename;
+
+void check_bufsize(uint16_t bufsize)
+{
+    if (bufsize < 4096) {
+        fprintf(stderr, "Buffer size too low: %u\n", bufsize);
+        exit(EXIT_FAILURE);
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    // 1. Define the command tree and its options.
     struct optparse_cmd main_cmd = {
         .about = "Supertool v1.00 - A really handy tool.",
-        .description = "This is an example program with a basic optparse99 setup. After parsing, it will print the remaining command line arguments.",
+        .description = "This is an example program that uses a basic optparse99 setup. Variables like \"FILENAME\" serve no purpose other than to demonstrate option behavior. After parsing, the program will print remaining operands and variables' final state.",
         .name = "supertool",
-        .operands = "ARGUMENT [ARGUMENT...]",
+        .operands = "OPERAND [OPERAND...]", // At least 1 operand is required.
         .options = (struct optparse_opt []) {
+            // Call the built-in help screen function.
             {
                 .short_name = 'h',
                 .long_name = "help",
                 .description = "Print help information and quit.",
                 .function = optparse_print_help,
             },
+            // Set a flag.
+            {
+                .long_name = "verbose",
+                .description = "Increase verbosity.",
+                .flag = &verbose,
+            },
+            // Use a user-provided option-argument to set a string.
+            {
+                .short_name = 'f',
+                .long_name = "file",
+                .description = "Set a file name.",
+                .arg_name = "FILENAME",
+                .arg_dest = &filename,
+            },
+            // Convert a user-provided option-argument to data type uint16_t and
+            // check if the converted number is inside an allowed range.
+            // (The check could also be done, perhaps together with other
+            // checks, by employing main_cmd's .function, or after parsing.)
+            {
+                .short_name = 'b',
+                .long_name = "bufsize",
+                .description = "Change the file buffer size. Allowed range: 4096-65535 (default: 4096).",
+                .arg_name = "BUFSIZE",
+                .arg_data_type = DATA_TYPE_UINT16,
+                .arg_dest = &bufsize,
+                .function = (void (*)(void)) check_bufsize,
+            },
             { END_OF_OPTIONS },
         },
     };
 
+    // 2. After defining the command tree, parse the command line arguments.
     optparse_parse(&main_cmd, &argc, &argv);
 
-    // Print remaining operands
+    // At this point, optparse99 is done. Variables have been set, and argc and
+    // argv have been altered to contain operands only.
+
+    // Print remaining operands.
     if (argc > 1) {
         for (int i = 0; i <= argc; i++) {
             printf("argv[%d]: %s\n", i, argv[i] ? argv[i] : "NULL");
         }
     } else {
-        optparse_print_help();
+        fprintf(stderr, "At least one operand is required.\n");
+        optparse_fprint_usage(stderr);
+        exit(EXIT_FAILURE);
     }
+
+    // Print state of variables.
+    printf("verbose: %d\n", verbose);
+    printf("filename: %s\n", filename ? filename : "NULL");
+    printf("bufsize: %u\n", bufsize);
 }
 ```
 
@@ -69,13 +125,18 @@ Help screen output:
 ```
 $ supertool --help
 Supertool v1.00 - A really handy tool.
-Usage: supertool [-h] ARGUMENT [ARGUMENT...]
+Usage: supertool [OPTIONS] OPERAND [OPERAND...]
 
-This is an example program with a basic optparse99 setup. After parsing, it will
-print the remaining command line arguments.
+This is an example program that uses a basic optparse99 setup. Variables like
+"FILENAME" serve no purpose other than to demonstrate option behavior. After
+parsing, the program will print remaining operands and variables' final state.
 
 Options:
-  -h, --help  Print help information and quit.
+  -h, --help             Print help information and quit.
+      --verbose          Increase verbosity.
+  -f, --file FILENAME    Set a file name.
+  -b, --bufsize BUFSIZE  Change the file buffer size. Allowed range: 4096-65535
+                         (default: 4096).
 ```
 
 # Documentation
@@ -110,19 +171,22 @@ struct optparse_cmd {
     void (*function)(int, char **);
     struct optparse_opt *options;
     struct optparse_cmd *subcommands;
+    struct optparse_cmd *_parent;
 };
 ```
 
-Structure member | Description
----------------- | ----------------
-.name (required) | The command line string users enter to run the command.
-.about           | A short sentence, describing the command's purpose in a nutshell. May also contain information like version number, homepage, etc.
-.description     | The command's detailed documentation.
-.operands        | The command's operands (aka "positional arguments") as to be displayed in the help screen.
-.usage           | Can be specified to override automatic usage generation, e.g. if operands depend on options.
-.function        | Once the command's options have been parsed, the command will call the specified function, using the current state of argc and argv as function arguments.
-.options         | Points to an array containing the command's options.
-.subcommands     | Point to an array containing the command's subcommands.
+Structure member   | Description
+------------------ | ------------------
+`.name` (required) | The command line string users enter to run the command.
+`.about`           | A short sentence, describing the command's purpose in a nutshell. May also contain information like version number, homepage, etc.
+`.description`     | The command's detailed documentation.
+`.operands`        | The command's operands (aka "positional arguments") as to be displayed in the help screen.
+`.usage`           | Can be specified to override automatic usage generation, e.g. if operands depend on options.
+`.function`        | Once the command's options have been parsed, the command will call the specified function, using the current state of argc and argv as function arguments.
+`.options`         | Points to an array containing the command's options.
+`.subcommands`     | Point to an array containing the command's subcommands.
+
+Members starting with an underscore ("_") are for internal use only and should be ignored.
 
 ## Option structure
 
@@ -131,86 +195,87 @@ struct optparse_opt {
     char short_name;
     char *long_name;
     char *arg;
-    void *arg_dest;
-    enum optparse_arg_type arg_type;
+    void *dest;
+    enum optparse_data_type data_type;
     int *flag;
-    enum optparse_flag_action flag_action;
+    enum optparse_flag_type flag_type;
     void (*function)(void);
-    enum optparse_function_arg function_arg;
+    enum optparse_function_type function_type;
     int group;
     _Bool hidden;
     char *description;
 };
 ```
 
-Structure member        | Description
------------------------ | -----------------------
-.short_name (required*) | The short option character.
-.long_name (required*)  | The long option string (without leading "--").
-.arg                    | If specified, it means the option has one or more option-arguments. The string is displayed as-is in the help screen. If it begins with "\[", the argument is regarded as optional.
-.arg_dest               | The memory location the (type-converted) option-argument is saved to.
-.arg_type               | If set, the parsed (single) option-argument will be converted from string to a different data type.
-.flag                   | A pointer to an integer variable that is to be used as specified by .flag_action.
-.flag_action            | Specifies what to do to with the flag variable's value.
-.function               | Points to a function that is called with the argument specified in .function_arg. The pointer can be cast to void (*)(void) to suppress compiler warnings.
-.function_arg           | Tells .function which argument to use.
-.group                  | Options that share the same group value are treated as mutually exclusive.
-.hidden                 | If true, the option won't be displayed in the help screen.
-.description            | The option's description, whether short or in-depth.
+Structure member          | Description
+------------------------- | -------------------------
+`.short_name` (required*) | The short option character.
+`.long_name` (required*)  | The long option string (without leading "--").
+`.arg`                    | If specified, it means the option has one or more option-arguments. The string is displayed as-is in the help screen. If it begins with "\[", the option-argument is regarded as optional.
+`.arg_data_type`          | If set, the parsed option-argument (char *) will be converted to a different data type.
+`.arg_dest`               | The memory location the (type-converted) option-argument is saved to.
+`.flag`                   | A pointer to an integer variable that is to be used as specified by .flag_type.
+`.flag_type`              | Specifies what to do to with the flag variable's value.
+`.function`               | Points to a function that is called as specified in .function_type. The pointer can be cast to void (*)(void) to suppress compiler warnings.
+`.function_type`          | Tells .function which argument to use.
+`.group`                  | Options that share the same group value are treated as mutually exclusive.
+`.hidden`                 | If true, the option won't be displayed in the help screen.
+`.description`            | The option's description, whether short or in-depth.
 * At least one of them must be specified.
 
-### Allowed values for .arg_type
+### Allowed values for .data_type
 
-Value                  | Conversion type
----------------------- | ------------------
-ARG_TYPE_STR (default) | (no conversion)
-ARG_TYPE_CHAR          | char
-ARG_TYPE_SCHAR         | signed char
-ARG_TYPE_UCHAR         | unsigned char
-ARG_TYPE_SHRT          | short
-ARG_TYPE_USHRT         | unsigned short
-ARG_TYPE_INT           | int
-ARG_TYPE_UINT          | unsigned int
-ARG_TYPE_LONG          | long
-ARG_TYPE_ULONG         | unsigned long
-ARG_TYPE_LLONG         | long long
-ARG_TYPE_ULLONG        | unsigned long long
-ARG_TYPE_FLT           | float
-ARG_TYPE_DBL           | double
-ARG_TYPE_LDBL          | long double
-ARG_TYPE_BOOL          | \_Bool
-ARG_TYPE_INT8          | int8_t
-ARG_TYPE_UINT8         | uint8_t
-ARG_TYPE_INT16         | int16_t
-ARG_TYPE_UINT16        | uint16_t
-ARG_TYPE_INT32         | int32_t
-ARG_TYPE_UINT32        | uint32_t
-ARG_TYPE_INT64         | int64_t
-ARG_TYPE_UINT64        | uint64_t
+Value                     | Conversion type
+------------------------- | ------------------
+`DATA_TYPE_STR` (default) | (no conversion)
+`DATA_TYPE_CHAR`          | char
+`DATA_TYPE_SCHAR`         | signed char
+`DATA_TYPE_UCHAR`         | unsigned char
+`DATA_TYPE_SHRT`          | short
+`DATA_TYPE_USHRT`         | unsigned short
+`DATA_TYPE_INT`           | int
+`DATA_TYPE_UINT`          | unsigned int
+`DATA_TYPE_LONG`          | long
+`DATA_TYPE_ULONG`         | unsigned long
+`DATA_TYPE_LLONG`         | long long
+`DATA_TYPE_ULLONG`        | unsigned long long
+`DATA_TYPE_FLT`           | float
+`DATA_TYPE_DBL`           | double
+`DATA_TYPE_LDBL`          | long double
+`DATA_TYPE_BOOL`          | \_Bool
+`DATA_TYPE_INT8`          | int8_t
+`DATA_TYPE_UINT8`         | uint8_t
+`DATA_TYPE_INT16`         | int16_t
+`DATA_TYPE_UINT16`        | uint16_t
+`DATA_TYPE_INT32`         | int32_t
+`DATA_TYPE_UINT32`        | uint32_t
+`DATA_TYPE_INT64`         | int64_t
+`DATA_TYPE_UINT64`        | uint64_t
 
-### Allowed values for .flag_action
+### Allowed values for .flag_type
 
 Value                          | Result
 ------------------------------ | ------------------------------
-FLAG_ACTION_SET_TRUE (default) | Set the variable to 1.
-FLAG_ACTION_SET_FALSE          | Set the variable to 0.
-FLAG_ACTION_INCREMENT          | Increase the variable's current value by 1.
-FLAG_ACTION_DECREMENT          | Decrease the variable's current value by 1.
+`FLAG_TYPE_SET_TRUE` (default) | Set the variable to 1.
+`FLAG_TYPE_SET_FALSE`          | Set the variable to 0.
+`FLAG_TYPE_INCREMENT`          | Increase the variable's current value by 1.
+`FLAG_TYPE_DECREMENT`          | Decrease the variable's current value by 1.
 
-### Allowed values for .function_arg
+### Allowed values for .function_type
 
-Value                             | Used function argument
---------------------------------- | ---------------------------------
-FUNCTION_ARG_AUTO (default)       | Automatically decide (default)
-FUNCTION_ARG_VOID                 | void
-FUNCTION_ARG_OPTION_ARG           | The unchanged option-argument (char \*)
-FUNCTION_ARG_CONVERTED_OPTION_ARG | The type-converted option-argument (type as specified in .arg_type)
+Value                          | Function declaration and internal call
+------------------------------ | --------------------------------------
+`FUNCTION_TYPE_AUTO` (default) | Automatically decide (default)
+`FUNCTION_TYPE_TARG`           | TARG means "type-converted option-argument" (type as specified in .arg_data_type).\ndeclaration: void f(DATA_TYPE);\ncall: f(TARG);
+`FUNCTION_TYPE_OARG`           | OARG means "original option-argument".\ndeclaration: void f(char *);\ncall: f(OARG);
+`FUNCTION_TYPE_VOID`           | declaration: void f(void);\ncall: f();
 
 How automatic decision works:
-   - if .arg is not set: FUNCTION_ARG_VOID
+   - if .arg_name is set:
+     - if .arg_data_type
    - if .arg is set:
-     - if .arg_type is ARG_TYPE_STR: FUNCTION_ARG_OPTION_ARG
-     - if .arg_type is not ARG_TYPE_STR: FUNCTION_ARG_CONVERTED_OPTION_ARG
+     - if .dest_type is DATA_TYPE_STR: FUNCTION_TYPE_ARG
+     - if .dest_type is not DATA_TYPE_STR: FUNCTION_TYPE_DEST
 
 Functions refered to by .function must be of return type void, and their argument definition must match .function_arg.
 
@@ -229,18 +294,25 @@ optparse_parse() starts the parsing process. It must be called before calling an
 void optparse_print_help(void);
 ```
 
-Prints the currently active command's help information. It can be called manually or through an option's .function member - see the [quick example](#quick-example) above.
+Prints the currently active command's help information. It can be called manually or through an option's .function member - see the [quick example](#quick-example) above. Exits with exit status EXIT_SUCCESS.
 
 ```C
-void optparse_print_help_stderr(void);
+void optparse_fprint_help(FILE *stream, int exit_status);
 ```
 
-Same as optparse_print_help(), but it prints to stderr.
+Same as optparse_print_help(), but can only be called manually. It prints to the specified stream and exits with the provided exit status.
+
+```C
+void optparse_fprint_usage(FILE *stream);
+```
+
+Prints the currently active command's usage information only. 
 
 ```C
 void optparse_print_help_subcmd(int argc, char **argv);
 ```
 
+Prints a subcommand's help information by parsing remaining operands.
 optparse_print_help_subcmd() must be called while the remaining command line arguments represent a valid subcommand chain, e.g. as a subcommand's function:
 
 ```C
@@ -268,7 +340,7 @@ char *optparse_unshift(void);
 optparse_shift() returns the next command line argument, while optparse_unshift() puts it back. Please note that optparse_unshift() is only guaranteed to undo the most recent shift.
 Using this technique, you can parse multiple option-arguments while having full control over what exactly qualifies as a valid option-argument and when to stop.
 
-The callback function should have the parameter char *, and .function_arg should be FUNCTION_ARG_OPTION_ARG (which it automatically is if .arg is specified). This is required to catch an option-argument the user may have entered via -oARG or --option=ARG. The function's argument will be the first command line argument, so it must be checked prior to using optparse_shift().
+The callback function must have the single parameter char *, and .function_arg must be FUNCTION_TYPE_OARG. The function's argument will be the first command line argument, so it must be checked prior to using optparse_shift().
 E.g. to make an option eat and print all remaining command line arguments:
 
 ```C
@@ -280,23 +352,39 @@ void print_arg(char *arg) {
 }
 ```
 
-Note: when implementing multiple option-arguments, the first option-argument should not be optional.
+Or, in general:
+
+```C
+void print_arg(char *arg) {
+    if (arg == NULL) {
+        ... // Code that is run if a required argument is missing.
+        return;
+    }
+
+    do {
+        ... // Code that is run for each argument.
+        arg = optparse_shift();
+    } while (arg != NULL);
+}
+
+```
+
+Note: when implementing multiple option-arguments, the first option-argument must not be optional unless OPTPARSE_ATTACHED_OPTION_ARGUMENTS (see [Preprocessor directives](#preprocessor-directives)) is set to false.
 
 ### Manual type-converting
 
 The function used internally for type-converting option-arguments is strtox():
 
 ```C
-int strtox(char *str, void *x, enum strtox_conversion_type conversion_type);
+int strtox(char *str, void *x, enum optparse_data_type data_type);
 ```
 
 It can also be used manually, to convert a string to any of the basic C99 data types.
-
 For example, to convert a string (in this case a string literal, "512") to int:
 
 ```C
 int i;
-int result = strtox("512", &i, STRTOI);
+int retval = strtox("512", &i, DATA_TYPE_INT);
 ```
 
 The function's return value depends on the conversion outcome:
@@ -305,57 +393,32 @@ Return value | Meaning
 ------------ | ------------
 0            | Success
 1            | The string is not convertible.
--1           | The string is too long.
-
-Allowed values for parameter conversion_type:
-
-Value     | Conversion type
---------- | ------------------
-STRTOC    | char
-STRTOSC   | signed char
-STRTOUC   | unsigned char
-STRTOS    | short
-STRTOUS   | unsigned short
-STRTOI    | int
-STRTOUI   | unsigned int
-STRTOL    | long
-STRTOUL   | unsigned long
-STRTOLL   | long long
-STRTOULL  | unsigned long long
-STRTOF    | float
-STRTOD    | double
-STRTOLD   | long double
-STRTOB    | \_Bool
-STRTOI8   | int8_t
-STRTOUI8  | uint8_t
-STRTOI16  | int16_t
-STRTOUI16 | uint16_t
-STRTOI32  | int32_t
-STRTOUI32 | uint32_t
-STRTOI64  | int64_t
-STRTOUI64 | uint64_t
+-1           | The converted data is out of range.
 
 ## Preprocessor directives
 
 The following macros can be defined to disable features and to customize the help screen:
 
-Macro                               | Default value | Description
------------------------------------ | ------------- | --------------------------
-OPTPARSE_LONG_OPTIONS               | 1 (boolean)   | Enables/disables long options.
-OPTPARSE_SUBCOMMANDS                | 1 (boolean)   | Enables/disables subcommands.
-OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS | 1 (boolean)   | Enables/disables mutually exclusive options.
-OPTPARSE_HIDDEN_OPTIONS             | 1 (boolean)   | Enables/disables hidden options.
-OPTPARSE_FLOATING_POINT_SUPPORT     | 1 (boolean)   | Enables/disables floating point support.
-OPTPARSE_C99_INTEGER_TYPES_SUPPORT  | 1 (boolean)   | Enables/disables C99 integer types support.
-OPTPARSE_HELP_INDENTATION_WIDTH     | 2             | The help screen's indentation width, in characters.
-OPTPARSE_HELP_MAX_DIVIDER_WIDTH     | 32            | Maximum distance between the help screen's left edge and option descriptions.
-OPTPARSE_HELP_MAX_LINE_WIDTH        | 80            | Maximum line width for word wrapping.
-OPTPARSE_HELP_USAGE_STYLE           | 1             | Style used for automatic usage generation; 0: short, 1: verbose.
-OPTPARSE_HELP_USAGE_OPTIONS_STRING  | "OPTIONS"     | Placeholder string to be displayed if OPTPARSE_HELP_USAGE_STYLE is 0.
-OPTPARSE_HELP_LETTER_CASE           | 0             | The help screen's letter case; 0: capitalized, 1: lower, 2: upper.
-OPTPARSE_HELP_WORD_WRAP             | 1 (boolean)   | Enables/disables word wrap for lines longer than OPTPARSE_HELP_MAX_LINE_WIDTH.
-OPTPARSE_HELP_FLOATING_DESCRIPTIONS | 1 (boolean)   | Defines how a description is to be printed if an option is longer than OPTPARSE_HELP_MAX_DIVIDER_WIDTH; 0: print description on a separate line, 1: print description on the same line, after a single indentation.
-OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS | 1 (boolean) | Makes long options stay in a separate column even if there's no short option.
-OPTPARSE_PRINT_HELP_ON_ERROR        | 1 (boolean)   | Prints the currently active command's help screen if there's a parsing error.
+Macro                                 | Default value | Description
+------------------------------------- | ------------- | ----------------------------
+`OPTPARSE_LONG_OPTIONS`               | 1 (boolean)   | Enables/disables long options.
+`OPTPARSE_SUBCOMMANDS`                | 1 (boolean)   | Enables/disables subcommands.
+`OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS` | 1 (boolean)   | Enables/disables mutually exclusive options.
+`OPTPARSE_HIDDEN_OPTIONS`             | 1 (boolean)   | Enables/disables hidden options.
+`OPTPARSE_ATTACHED_OPTION_ARGUMENTS`  | 1 (boolean)   | Enables/disables attached option-arguments (-oarg, --option=arg). Note: if disabled, optional option-arguments can only be detected during manual parsing.
+`OPTPARSE_FLOATING_POINT_SUPPORT`     | 1 (boolean)   | Enables/disables floating point support.
+`OPTPARSE_C99_INTEGER_TYPES_SUPPORT`  | 1 (boolean)   | Enables/disables C99 integer types support.
+`OPTPARSE_HELP_INDENTATION_WIDTH`     | 2             | The help screen's indentation width, in characters.
+`OPTPARSE_HELP_MAX_DIVIDER_WIDTH`     | 32            | Maximum distance between the help screen's left edge and option descriptions.
+`OPTPARSE_HELP_MAX_LINE_WIDTH`        | 80            | Maximum line width for word wrapping.
+`OPTPARSE_HELP_USAGE_STYLE`           | 1             | Style used for automatic usage generation; 0: short, 1: verbose.
+`OPTPARSE_HELP_USAGE_OPTIONS_STRING`  | "OPTIONS"     | Placeholder string to be displayed if OPTPARSE_HELP_USAGE_STYLE is 0.
+`OPTPARSE_HELP_LETTER_CASE`           | 0             | The help screen's letter case; 0: capitalized, 1: lower, 2: upper.
+`OPTPARSE_HELP_WORD_WRAP`             | 1 (boolean)   | Enables/disables word wrap for lines longer than OPTPARSE_HELP_MAX_LINE_WIDTH.
+`OPTPARSE_HELP_FLOATING_DESCRIPTIONS` | 1 (boolean)   | Defines how a description is to be printed if an option is longer than OPTPARSE_HELP_MAX_DIVIDER_WIDTH; 0: print description on a separate line, 1: print description on the same line, after a single indentation.
+`OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS` | 1 (boolean) | Makes long options stay in a separate column even if there's no short option.
+`OPTPARSE_PRINT_HELP_ON_ERROR`        | 1 (boolean)   | Prints the currently active command's help screen if there's a parsing error.
 
 By disabling a feature, related code will not be compiled and structure members that are related to that feature will no longer be recognized.
+
+When building releases, please define NDEBUG to remove assert()-related code.

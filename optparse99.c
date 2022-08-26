@@ -1,5 +1,30 @@
 // A C99+ option parser.
-// Copyright (c) 2022 hippie68 (https://github.com/hippie68/optparse99)
+
+/*
+MIT License
+
+Copyright (c) 2022 hippie68 (https://github.com/hippie68/optparse99)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+// More information, including example code, is found in the file "README.md".
 
 #include "optparse99.h"
 
@@ -11,17 +36,19 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_SUBCMD_DEPTH 16
-#define MUTUALLY_EXCLUSIVE_GROUPS_MAX 16
+// These can be arbitrarily changed.
+#define MAX_SUBCMD_DEPTH 4 // Including the top level command.
+#define MUTUALLY_EXCLUSIVE_GROUPS_MAX 8
 #define PRINT_BUFFER_SIZE 8192
 
-static struct optparse_cmd *optparse_main_cmd; // The command tree's root
-static char **args; // Contains the current state of argv while parsing
-static int args_index; // Keeps track of the currently parsed argument's index
+static struct optparse_cmd *optparse_main_cmd; // The command tree's root.
+static char **args;    // Contains the current state of argv while parsing.
+static int args_index; // Keeps track of the currently parsed argument's index.
 #if OPTPARSE_SUBCOMMANDS
-static struct optparse_cmd *active_cmd; // Keeps track of the currently running command
+static struct optparse_cmd *active_cmd; // Keeps track of the currently running
+                                        // command.
 #endif
-static FILE *help_stream; // The stream help information is printed to
+static FILE *help_stream; // The stream help information is printed to.
 
 #ifndef OPTPARSE_HELP_INDENTATION_WIDTH
 #define OPTPARSE_HELP_INDENTATION_WIDTH 2
@@ -39,7 +66,7 @@ static FILE *help_stream; // The stream help information is printed to
 #define OPTPARSE_HELP_WORD_WRAP true
 #endif
 #ifndef OPTPARSE_HELP_USAGE_STYLE
-#define OPTPARSE_HELP_USAGE_STYLE 1 // 0: short, 1: verbose
+#define OPTPARSE_HELP_USAGE_STYLE 0 // 0: short, 1: verbose
 #endif
 #ifndef OPTPARSE_HELP_USAGE_OPTIONS_STRING
 #define OPTPARSE_HELP_USAGE_OPTIONS_STRING "OPTIONS"
@@ -69,14 +96,15 @@ static FILE *help_stream; // The stream help information is printed to
 #include <string.h>
 #include <limits.h>
 
-// Converts a string to a different type.
+// Converts a string to a different data type.
 // Return value:  0: success
 //                1: string is not convertible
-//               -1: string is too long
+//               -1: converted data is out of range
 // Example:
 //     int i;
-//     strtox("512", &i, STRTOI);
-int strtox(char *str, void *x, enum strtox_conversion_type conversion_type) {
+//     int retval = strtox("512", &i, DATA_TYPE_INT);
+int strtox(char *str, void *x, enum optparse_data_type data_type)
+{
     if (str == NULL) {
         return 1;
     }
@@ -84,91 +112,94 @@ int strtox(char *str, void *x, enum strtox_conversion_type conversion_type) {
     char *endptr = NULL;
     errno = 0;
 
-    switch (conversion_type) {
-        case STRTOC:
+    switch (data_type) {
+        case DATA_TYPE_STR:
+            *(char **) x = str;
+            break;
+        case DATA_TYPE_CHAR:
             if (strlen(str) > 1) {
                 errno = ERANGE;
             }
             *(char *) x = str[0];
             break;
-        case STRTOSC:
+        case DATA_TYPE_SCHAR:
             if (strlen(str) > 1) {
                 errno = ERANGE;
             }
             *(signed char *) x = str[0];
             break;
-        case STRTOUC:
+        case DATA_TYPE_UCHAR:
             if (strlen(str) > 1) {
                 errno = ERANGE;
             }
             *(unsigned char *) x = str[0];
             break;
-        case STRTOS:
+        case DATA_TYPE_SHRT:
             {
                 long result = strtol(str, &endptr, 0);
                 if (result < SHRT_MIN || result > SHRT_MAX) {
                     errno = ERANGE;
                 }
-                *(short *) x = result;
+                *(short *) x = (short) result;
             }
             break;
-        case STRTOUS:
+        case DATA_TYPE_USHRT:
             {
                 unsigned long result = strtoul(str, &endptr, 0);
                 if (result > USHRT_MAX) {
                     errno = ERANGE;
                 }
-                *(unsigned short *) x = result;
+                *(unsigned short *) x = (unsigned short) result;
             }
             break;
-        case STRTOI:
+        case DATA_TYPE_INT:
             {
                 long result = strtol(str, &endptr, 0);
                 if (result < INT_MIN || result > INT_MAX) {
                     errno = ERANGE;
                 }
-                *(int *) x = result;
+                *(int *) x = (int) result;
             }
             break;
-        case STRTOUI:
+        case DATA_TYPE_UINT:
             {
                 unsigned long result = strtoul(str, &endptr, 0);
                 if (result > UINT_MAX) {
                     errno = ERANGE;
                 }
-                *(unsigned int *) x = result;
+                *(unsigned int *) x = (unsigned int) result;
             }
             break;
-        case STRTOL:
+        case DATA_TYPE_LONG:
             *(long *) x = strtol(str, &endptr, 0);
             break;
-        case STRTOUL:
+        case DATA_TYPE_ULONG:
             *(unsigned long *) x = strtoul(str, &endptr, 0);
             break;
-        case STRTOLL:
+        case DATA_TYPE_LLONG:
             *(long long *) x = strtoll(str, &endptr, 0);
             break;
-        case STRTOULL:
+        case DATA_TYPE_ULLONG:
             *(unsigned long long *) x = strtoull(str, &endptr, 0);
             break;
 #if OPTPARSE_FLOATING_POINT_SUPPORT
-        case STRTOF:
+        case DATA_TYPE_FLT:
             {
                 double result = strtod(str, &endptr);
                 if (result < FLT_MIN || result > FLT_MAX) {
                     errno = ERANGE;
                 }
-                *(float *) x = result;
+                *(float *) x = (float) result;
             }
             break;
-        case STRTOD:
+        case DATA_TYPE_DBL:
             *(double *) x = strtod(str, &endptr);
             break;
-        case STRTOLD:
+        case DATA_TYPE_LDBL:
             *(long double *) x = strtold(str, &endptr);
             break;
 #endif
-        case STRTOB:
+        case DATA_TYPE_BOOL:
             {
                 int len = strlen(str);
                 char temp[len + 1];
@@ -193,7 +224,7 @@ int strtox(char *str, void *x, enum strtox_conversion_type conversion_type) {
                 } else if (strcmp(temp, "off") == 0) {
                     *(bool *) x = false;
                 } else {
-                    int result = strtox(str, x, STRTOI);
+                    int result = strtox(str, x, DATA_TYPE_INT);
                     if (result == 1 || result == 0) {
                         *(bool *) x = result;
                     } else {
@@ -203,76 +234,76 @@ int strtox(char *str, void *x, enum strtox_conversion_type conversion_type) {
             }
             break;
 #if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
-        case STRTOI8:
+        case DATA_TYPE_INT8:
             {
-                int8_t result = strtol(str, &endptr, 0);
+                long result = strtol(str, &endptr, 0);
                 if (result < INT8_MIN || result > INT8_MAX) {
                     errno = ERANGE;
                 }
-                *(int8_t *) x = result;
+                *(int8_t *) x = (int8_t) result;
             }
             break;
-        case STRTOUI8:
+        case DATA_TYPE_UINT8:
             {
-                uint8_t result = strtol(str, &endptr, 0);
+                unsigned long result = strtoul(str, &endptr, 0);
                 if (result > UINT8_MAX) {
                     errno = ERANGE;
                 }
-                *(uint8_t *) x = result;
+                *(uint8_t *) x = (uint8_t) result;
             }
             break;
-        case STRTOI16:
+        case DATA_TYPE_INT16:
             {
-                int16_t result = strtol(str, &endptr, 0);
+                long result = strtol(str, &endptr, 0);
                 if (result < INT16_MIN || result > INT16_MAX) {
                     errno = ERANGE;
                 }
-                *(int16_t *) x = result;
+                *(int16_t *) x = (int16_t) result;
             }
             break;
-        case STRTOUI16:
+        case DATA_TYPE_UINT16:
             {
-                uint16_t result = strtol(str, &endptr, 0);
+                unsigned long result = strtoul(str, &endptr, 0);
                 if (result > UINT16_MAX) {
                     errno = ERANGE;
                 }
-                *(uint16_t *) x = result;
+                *(uint16_t *) x = (uint16_t) result;
             }
             break;
-        case STRTOI32:
+        case DATA_TYPE_INT32:
             {
-                int32_t result = strtol(str, &endptr, 0);
+                long result = strtol(str, &endptr, 0);
                 if (result < INT32_MIN || result > INT32_MAX) {
                     errno = ERANGE;
                 }
-                *(int32_t *) x = result;
+                *(int32_t *) x = (int32_t) result;
             }
             break;
-        case STRTOUI32:
+        case DATA_TYPE_UINT32:
             {
-                uint32_t result = strtol(str, &endptr, 0);
+                unsigned long result = strtoul(str, &endptr, 0);
                 if (result > UINT32_MAX) {
                     errno = ERANGE;
                 }
-                *(uint32_t *) x = result;
+                *(uint32_t *) x = (uint32_t) result;
             }
             break;
-        case STRTOI64:
+        case DATA_TYPE_INT64:
             {
-                int64_t result = strtoll(str, &endptr, 0);
+                long long result = strtoll(str, &endptr, 0);
                 if (result < INT64_MIN || result > INT64_MAX) {
                     errno = ERANGE;
                 }
-                *(int64_t *) x = result;
+                *(int64_t *) x = (int64_t) result;
             }
             break;
-        case STRTOUI64:
+        case DATA_TYPE_UINT64:
             {
-                uint64_t result = strtoll(str, &endptr, 0);
+                unsigned long long result = strtoull(str, &endptr, 0);
                 if (result > UINT64_MAX) {
                     errno = ERANGE;
                 }
-                *(uint64_t *) x = result;
+                *(uint64_t *) x = (uint64_t) result;
             }
             break;
 #endif
@@ -290,49 +321,70 @@ int strtox(char *str, void *x, enum strtox_conversion_type conversion_type) {
 /// Private functions ----------------------------------------------------------
 
 // Prints an error message and quits. Should be used for parsing errors only.
-static void optparse_error(char *fmt, ...) {
+static void optparse_error(char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
     va_end(ap);
 #if OPTPARSE_PRINT_HELP_ON_ERROR
-    optparse_print_help_stderr(); // Print the currently active command's help
+    optparse_fprint_help(stderr, EXIT_FAILURE);
 #endif
     exit(EXIT_FAILURE);
 }
 
 // Safely prints to a buffer of size PRINT_BUFFER_SIZE;
-static void bprintf(char *buffer, const char *fmt, ...) {
+static int bprintf(char *buffer, const char *fmt, ...)
+{
+    int n;
     va_list ap;
     va_start(ap, fmt);
     size_t len = strlen(buffer);
-    vsnprintf(buffer + len, PRINT_BUFFER_SIZE - len, fmt, ap);
+    n = vsnprintf(buffer + len, PRINT_BUFFER_SIZE - len, fmt, ap);
     va_end(ap);
+    return n;
+}
+
+// Prints an option's usage information ("-a ARG") to a buffer.
+static void bprint_option_usage(char *buffer, struct optparse_opt *opt)
+{
+    if (opt->short_name) {
+        bprintf(buffer, "-%c", opt->short_name);
+    } else {
+        bprintf(buffer, "--%s", opt->long_name);
+    }
+
+    if (opt->arg_name) {
+        if (opt->arg_name[0] == '[' && opt->long_name) {
+            bprintf(buffer, "[=%s", opt->arg_name + 1);
+        } else {
+            bprintf(buffer, " %s", opt->arg_name);
+        }
+    }
 }
 
 // Executes an option structure's tasks.
-static void execute_option(struct optparse_opt *opt, char *arg) {
-    int result = 0;
-
-    // Set option's flag
+static void execute_option(struct optparse_opt *opt, char *arg)
+{
+    // Set option's flag.
     if (opt->flag) {
-        switch (opt->flag_action) {
-            case FLAG_ACTION_SET_TRUE:
+        switch (opt->flag_type) {
+            case FLAG_TYPE_SET_TRUE:
                 *(int *) opt->flag = 1;
                 break;
-            case FLAG_ACTION_SET_FALSE:
+            case FLAG_TYPE_SET_FALSE:
                 *(int *) opt->flag = 0;
                 break;
-            case FLAG_ACTION_INCREMENT:
+            case FLAG_TYPE_INCREMENT:
                 *(int *) opt->flag += 1;
                 break;
-            case FLAG_ACTION_DECREMENT:
+            case FLAG_TYPE_DECREMENT:
                 *(int *) opt->flag -= 1;
                 break;
         }
     }
 
-    // Used to hold a type-converted option-argument
+    // Used to temporarily hold a type-converted option-argument.
     union {
         char t_char;
         signed char t_schar;
@@ -363,274 +415,221 @@ static void execute_option(struct optparse_opt *opt, char *arg) {
 #endif
     } conv_arg;
 
-    // Convert option-argument to a different type
-    if (opt->arg_type) {
-        switch (opt->arg_type) {
-            case ARG_TYPE_CHAR:
-                result = strtox(arg, &conv_arg, STRTOC);
-                break;
-            case ARG_TYPE_SCHAR:
-                result = strtox(arg, &conv_arg, STRTOSC);
-                break;
-            case ARG_TYPE_UCHAR:
-                result = strtox(arg, &conv_arg, STRTOUC);
-                break;
-            case ARG_TYPE_SHRT:
-                result = strtox(arg, &conv_arg, STRTOS);
-                break;
-            case ARG_TYPE_USHRT:
-                result = strtox(arg, &conv_arg, STRTOUS);
-                break;
-            case ARG_TYPE_INT:
-                result = strtox(arg, &conv_arg, STRTOI);
-                break;
-            case ARG_TYPE_UINT:
-                result = strtox(arg, &conv_arg, STRTOUI);
-                break;
-            case ARG_TYPE_LONG:
-                result = strtox(arg, &conv_arg, STRTOL);
-                break;
-            case ARG_TYPE_ULONG:
-                result = strtox(arg, &conv_arg, STRTOUL);
-                break;
-            case ARG_TYPE_LLONG:
-                result = strtox(arg, &conv_arg, STRTOLL);
-                break;
-            case ARG_TYPE_ULLONG:
-                result = strtox(arg, &conv_arg, STRTOULL);
-                break;
-#if OPTPARSE_FLOATING_POINT_SUPPORT
-            case ARG_TYPE_FLT:
-                result = strtox(arg, &conv_arg, STRTOF);
-                break;
-            case ARG_TYPE_DBL:
-                result = strtox(arg, &conv_arg, STRTOD);
-                break;
-            case ARG_TYPE_LDBL:
-                result = strtox(arg, &conv_arg, STRTOLD);
-                break;
-#endif
-            case ARG_TYPE_BOOL:
-                result = strtox(arg, &conv_arg, STRTOB);
-                break;
-#if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
-            case ARG_TYPE_INT8:
-                result = strtox(arg, &conv_arg, STRTOI8);
-                break;
-            case ARG_TYPE_UINT8:
-                result = strtox(arg, &conv_arg, STRTOUI8);
-                break;
-            case ARG_TYPE_INT16:
-                result = strtox(arg, &conv_arg, STRTOI16);
-                break;
-            case ARG_TYPE_UINT16:
-                result = strtox(arg, &conv_arg, STRTOUI16);
-                break;
-            case ARG_TYPE_INT32:
-                result = strtox(arg, &conv_arg, STRTOI32);
-                break;
-            case ARG_TYPE_UINT32:
-                result = strtox(arg, &conv_arg, STRTOUI32);
-                break;
-            case ARG_TYPE_INT64:
-                result = strtox(arg, &conv_arg, STRTOI64);
-                break;
-            case ARG_TYPE_UINT64:
-                result = strtox(arg, &conv_arg, STRTOUI64);
-                break;
-#endif
-        }
-
-        if (result == 1) {
+    // Type-convert the option-argument.
+    if (opt->arg_data_type) {
+        int ret;
+        ret = strtox(arg, &conv_arg, opt->arg_data_type);
+        if (ret == 1) {
             optparse_error("Argument not valid: \"%s\"\n", arg);
-        } else if (result == -1) {
-            optparse_error("Argument too long: \"%s\"\n", arg);
+        } else if (ret == -1) {
+            optparse_error("Value out of range: \"%s\"\n", arg);
         }
     }
 
-    // Store (type-converted) option-argument
+    // Store (type-converted) option-argument.
     if (opt->arg_dest) {
-        switch (opt->arg_type) {
-            case ARG_TYPE_STR:
-                *(char **) opt->arg_dest = arg;
-                break;
-            case ARG_TYPE_CHAR:
-            case ARG_TYPE_SCHAR:
-            case ARG_TYPE_UCHAR:
-                memcpy(opt->arg_dest, &conv_arg, 1);
-                break;
-            case ARG_TYPE_SHRT:
-            case ARG_TYPE_USHRT:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(short));
-                break;
-            case ARG_TYPE_INT:
-            case ARG_TYPE_UINT:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(int));
-                break;
-            case ARG_TYPE_LONG:
-            case ARG_TYPE_ULONG:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(long));
-                break;
-            case ARG_TYPE_LLONG:
-            case ARG_TYPE_ULLONG:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(long long));
-                break;
+        if (opt->arg_data_type == DATA_TYPE_STR) {
+            *(char **) opt->arg_dest = arg;
+        } else {
+            size_t n;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wswitch" // DATA_TYPE_STR is already checked.
+            switch (opt->arg_data_type) {
+                case DATA_TYPE_CHAR:
+                case DATA_TYPE_SCHAR:
+                case DATA_TYPE_UCHAR:
+                    n = 1;
+                    break;
+                case DATA_TYPE_SHRT:
+                case DATA_TYPE_USHRT:
+                    n = sizeof (short);
+                    break;
+                case DATA_TYPE_INT:
+                case DATA_TYPE_UINT:
+                    n = sizeof (int);
+                    break;
+                case DATA_TYPE_LONG:
+                case DATA_TYPE_ULONG:
+                    n = sizeof (long);
+                    break;
+                case DATA_TYPE_LLONG:
+                case DATA_TYPE_ULLONG:
+                    n = sizeof (long long);
+                    break;
 #if OPTPARSE_FLOATING_POINT_SUPPORT
-            case ARG_TYPE_FLT:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(float));
-                break;
-            case ARG_TYPE_DBL:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(double));
-                break;
-            case ARG_TYPE_LDBL:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(long double));
-                break;
+                case DATA_TYPE_FLT:
+                    n = sizeof (float);
+                    break;
+                case DATA_TYPE_DBL:
+                    n = sizeof (double);
+                    break;
+                case DATA_TYPE_LDBL:
+                    n = sizeof (long double);
+                    break;
 #endif
-            case ARG_TYPE_BOOL:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(_Bool));
-                break;
+                case DATA_TYPE_BOOL:
+                    n = sizeof (_Bool);
+                    break;
 #if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
-            case ARG_TYPE_INT8:
-            case ARG_TYPE_UINT8:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(int8_t));
-                break;
-            case ARG_TYPE_INT16:
-            case ARG_TYPE_UINT16:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(int16_t));
-                break;
-            case ARG_TYPE_INT32:
-            case ARG_TYPE_UINT32:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(int32_t));
-                break;
-            case ARG_TYPE_INT64:
-            case ARG_TYPE_UINT64:
-                memcpy(opt->arg_dest, &conv_arg, sizeof(int64_t));
-                break;
+                case DATA_TYPE_INT8:
+                case DATA_TYPE_UINT8:
+                    n = 1;
+                    break;
+                case DATA_TYPE_INT16:
+                case DATA_TYPE_UINT16:
+                    n = 2;
+                    break;
+                case DATA_TYPE_INT32:
+                case DATA_TYPE_UINT32:
+                    n = 4;
+                    break;
+                case DATA_TYPE_INT64:
+                case DATA_TYPE_UINT64:
+                    n = 8;
+                    break;
 #endif
+            }
+#pragma GCC diagnostic pop
+
+            memcpy(opt->arg_dest, &conv_arg, n);
         }
     }
 
-    // Call option's function
+    // Call option's function.
     if (opt->function) {
-        switch (opt->function_arg) {
-            case FUNCTION_ARG_AUTO:
-                if (opt->arg_type) {
-                    goto converted_arg;
-                } else if (opt->arg) {
-                    goto string_arg;
+        switch (opt->function_type) {
+            case FUNCTION_TYPE_AUTO:
+                if (opt->arg_name) {
+                    if (opt->arg_data_type) {
+                        goto type_targ;
+                    } else {
+                        goto type_oarg;
+                    }
                 } else {
-                    goto void_arg;
+                    goto type_void;
                 }
+            case FUNCTION_TYPE_OARG:
+                type_oarg:
+                ((void (*)(char *)) opt->function)(arg);
                 break;
-            case FUNCTION_ARG_VOID:
-                void_arg:
-                ((void (*)(void)) opt->function)();
-                break;
-            case FUNCTION_ARG_OPTION_ARG:
-                goto string_arg;
-                break;
-            case FUNCTION_ARG_CONVERTED_OPTION_ARG:
-                converted_arg:
-                switch (opt->arg_type) {
-                    case ARG_TYPE_STR:
-                    string_arg:
+            case FUNCTION_TYPE_TARG:
+                type_targ:
+                switch (opt->arg_data_type) {
+                    case DATA_TYPE_STR:
                         ((void (*)(char *)) opt->function)(arg);
                         break;
-                    case ARG_TYPE_CHAR:
+                    case DATA_TYPE_CHAR:
                         ((void (*)(char)) opt->function)(conv_arg.t_char);
                         break;
-                    case ARG_TYPE_SCHAR:
-                        ((void (*)(signed char)) opt->function)(conv_arg.t_schar);
+                    case DATA_TYPE_SCHAR:
+                        ((void (*)(signed char)) opt->function)(
+                            conv_arg.t_schar);
                         break;
-                    case ARG_TYPE_UCHAR:
-                        ((void (*)(unsigned char)) opt->function)(conv_arg.t_uchar);
+                    case DATA_TYPE_UCHAR:
+                        ((void (*)(unsigned char)) opt->function)(
+                            conv_arg.t_uchar);
                         break;
-                    case ARG_TYPE_SHRT:
+                    case DATA_TYPE_SHRT:
                         ((void (*)(short)) opt->function)(conv_arg.t_shrt);
                         break;
-                    case ARG_TYPE_USHRT:
-                        ((void (*)(unsigned short)) opt->function)(conv_arg.t_ushrt);
+                    case DATA_TYPE_USHRT:
+                        ((void (*)(unsigned short)) opt->function)(
+                            conv_arg.t_ushrt);
                         break;
-                    case ARG_TYPE_INT:
+                    case DATA_TYPE_INT:
                         ((void (*)(int)) opt->function)(conv_arg.t_int);
                         break;
-                    case ARG_TYPE_UINT:
-                        ((void (*)(unsigned int)) opt->function)(conv_arg.t_uint);
+                    case DATA_TYPE_UINT:
+                        ((void (*)(unsigned int)) opt->function)(
+                            conv_arg.t_uint);
                         break;
-                    case ARG_TYPE_LONG:
+                    case DATA_TYPE_LONG:
                         ((void (*)(long)) opt->function)(conv_arg.t_long);
                         break;
-                    case ARG_TYPE_ULONG:
-                        ((void (*)(unsigned long)) opt->function)(conv_arg.t_ulong);
+                    case DATA_TYPE_ULONG:
+                        ((void (*)(unsigned long)) opt->function)(
+                            conv_arg.t_ulong);
                         break;
-                    case ARG_TYPE_LLONG:
+                    case DATA_TYPE_LLONG:
                         ((void (*)(long long)) opt->function)(conv_arg.t_llong);
                         break;
-                    case ARG_TYPE_ULLONG:
-                        ((void (*)(unsigned long long)) opt->function)(conv_arg.t_ullong);
+                    case DATA_TYPE_ULLONG:
+                        ((void (*)(unsigned long long)) opt->function)(
+                            conv_arg.t_ullong);
                         break;
 #if OPTPARSE_FLOATING_POINT_SUPPORT
-                    case ARG_TYPE_FLT:
+                    case DATA_TYPE_FLT:
                         ((void (*)(float)) opt->function)(conv_arg.t_flt);
                         break;
-                    case ARG_TYPE_DBL:
+                    case DATA_TYPE_DBL:
                         ((void (*)(double)) opt->function)(conv_arg.t_dbl);
                         break;
-                    case ARG_TYPE_LDBL:
-                        ((void (*)(long double)) opt->function)(conv_arg.t_ldbl);
+                    case DATA_TYPE_LDBL:
+                        ((void (*)(long double)) opt->function)(
+                            conv_arg.t_ldbl);
                         break;
 #endif
-                    case ARG_TYPE_BOOL:
+                    case DATA_TYPE_BOOL:
                         ((void (*)(_Bool)) opt->function)(conv_arg.t_bool);
                         break;
 #if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
-                    case ARG_TYPE_INT8:
+                    case DATA_TYPE_INT8:
                         ((void (*)(int8_t)) opt->function)(conv_arg.t_int8);
                         break;
-                    case ARG_TYPE_UINT8:
+                    case DATA_TYPE_UINT8:
                         ((void (*)(uint8_t)) opt->function)(conv_arg.t_uint8);
                         break;
-                    case ARG_TYPE_INT16:
+                    case DATA_TYPE_INT16:
                         ((void (*)(int16_t)) opt->function)(conv_arg.t_int16);
                         break;
-                    case ARG_TYPE_UINT16:
+                    case DATA_TYPE_UINT16:
                         ((void (*)(uint16_t)) opt->function)(conv_arg.t_uint16);
                         break;
-                    case ARG_TYPE_INT32:
+                    case DATA_TYPE_INT32:
                         ((void (*)(int32_t)) opt->function)(conv_arg.t_int32);
                         break;
-                    case ARG_TYPE_UINT32:
+                    case DATA_TYPE_UINT32:
                         ((void (*)(uint32_t)) opt->function)(conv_arg.t_uint32);
                         break;
-                    case ARG_TYPE_INT64:
+                    case DATA_TYPE_INT64:
                         ((void (*)(int64_t)) opt->function)(conv_arg.t_int64);
                         break;
-                    case ARG_TYPE_UINT64:
+                    case DATA_TYPE_UINT64:
                         ((void (*)(uint64_t)) opt->function)(conv_arg.t_uint64);
                         break;
 #endif
                 }
+                break;
+            case FUNCTION_TYPE_VOID:
+                type_void:
+                ((void (*)(void)) opt->function)();
                 break;
         }
     }
 }
 
 #if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
-// Prints an option's name ("-o, --option") to a buffer.
-static void bprint_option_name(char *buffer, struct optparse_opt *opt) {
+// Prints a mutually exclusive option's name ("-o, --option") to a buffer.
+static void bprint_option_name(char *buffer, struct optparse_opt *opt)
+{
     if (opt->short_name) {
         bprintf(buffer, "-%c", opt->short_name);
         if (opt->long_name) {
             bprintf(buffer, ", ");
         }
     }
+
     if (opt->long_name) {
         bprintf(buffer, "--%s", opt->long_name);
     }
 }
+#endif
 
+#if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
 // Checks an option for mutual exclusivity violations and quits on error.
-static void check_mutual_exclusivity(struct optparse_opt *opt) {
+static void check_mutual_exclusivity(struct optparse_opt *opt)
+{
     static struct optparse_opt *exclusive_opts[MUTUALLY_EXCLUSIVE_GROUPS_MAX];
 
     if (opt->group > 0 && opt->group
@@ -643,29 +642,28 @@ static void check_mutual_exclusivity(struct optparse_opt *opt) {
             optparse_error("Options %s and %s are mutually exclusive.\n",
                 buffer1, buffer2);
         } else {
-            exclusive_opts[opt->group] = opt; // Add to
+            exclusive_opts[opt->group] = opt;
         }
     }
 }
 #endif
 
-// Returns 1 if the option requires at least 1 argument.
-static inline int arg_required(struct optparse_opt *opt) {
-    if (opt->arg && opt->arg[0] != '[') {
-        return 1;
-    }
-
-    return 0;
-}
-
 #if OPTPARSE_LONG_OPTIONS
 // Identifies and executes a single known long option.
-static void execute_long_option(char *long_name,
-    struct optparse_opt options[]) {
+static void execute_long_option(char *long_name, struct optparse_opt options[])
+{
+    if (options == NULL) {
+        goto unknown_option;
+    }
+
+#if OPTPARSE_ATTACHED_OPTION_ARGUMENTS
     char *arg = strchr(long_name, '=');
     if (arg) {
         *arg++ = '\0';
     }
+#else
+    char *arg = NULL;
+#endif
 
     struct optparse_opt *opt = options;
     while (opt->short_name != (char) END_OF_OPTIONS) {
@@ -674,13 +672,13 @@ static void execute_long_option(char *long_name,
             check_mutual_exclusivity(opt);
 #endif
             if (arg) {
-                if (!opt->arg) {
+                if (!opt->arg_name) {
                     optparse_error("Unwanted option-argument: \"%s\"\n", arg);
                 }
-            } else if (opt->arg && opt->arg[0] != '[') {
+            } else if (opt->arg_name && opt->arg_name[0] != '[') {
                 arg = args[++args_index];
                 if (arg == NULL) {
-                    optparse_error("Option \"--%s\": argument required\n",
+                    optparse_error("Option \"--%s\" requires an argument.\n",
                         long_name);
                 }
             }
@@ -692,15 +690,23 @@ static void execute_long_option(char *long_name,
         opt++;
     }
 
+    unknown_option:
     optparse_error("Unknown option: \"--%s\"\n", long_name);
 }
 #endif
 
 // Identifies and executes a group of known short options.
+// option_group must not be NULL.
 static void execute_short_option(char *option_group,
-    struct optparse_opt options[]) {
-    char *c = option_group;
-    while (*++c != '\0') {
+    struct optparse_opt options[])
+{
+    char *c = option_group + 1;
+
+    if (options == NULL) {
+        goto unknown_option;
+    }
+
+    while (*c != '\0') {
         char *arg = c + 1;
         if (*arg == '\0') {
             arg = NULL;
@@ -713,13 +719,23 @@ static void execute_short_option(char *option_group,
                 check_mutual_exclusivity(opt);
 #endif
                 if (arg) {
-                    if (!opt->arg) {
+#if OPTPARSE_ATTACHED_OPTION_ARGUMENTS
+                    if (!opt->arg_name) {
                         arg = NULL;
                     }
-                } else if (opt->arg && opt->arg[0] != '[') {
+#else
+                    if (opt->arg_name) {
+                        optparse_error("Option -%c (in sequence \"%s\")"
+                            " requires an argument.\n", *c, option_group);
+                    } else {
+                        arg = NULL;
+                    }
+#endif
+                } else if (opt->arg_name && opt->arg_name[0] != '[') {
                     arg = args[++args_index];
                     if (arg == NULL) {
-                        optparse_error("Option -%c: argument required\n", *c);
+                        optparse_error(
+                            "Option -%c requires an argument.\n", *c);
                     }
                 }
 
@@ -734,57 +750,58 @@ static void execute_short_option(char *option_group,
             opt++;
         }
 
-        if (option_group[2] != '\0') {
-            optparse_error("Unknown option: -%c (in argument \"%s\")\n", *c,
+        unknown_option:
+        if (option_group[1] != '\0' && option_group[2] != '\0') {
+            optparse_error("Unknown option: \"-%c\" (in sequence \"%s\")\n", *c,
                 option_group);
         } else {
-            optparse_error("Unknown option: -%c\n", *c);
+            optparse_error("Unknown option: \"%s\"\n", option_group);
         }
 
         next:
-        ;
+        c++;
     }
 }
 
 // Parses a command's command line options.
 // After parsing, only operands remain in argv.
-static void parse(int *argc, char ***argv, struct optparse_cmd *cmd) {
+static void parse(int *argc, char ***argv, struct optparse_cmd *cmd)
+{
     args = *argv;
     args_index = 1;
-    *argc = 1; // to keep argv[0]
+    *argc = 1; // To keep argv[0].
 #if OPTPARSE_SUBCOMMANDS
     active_cmd = cmd;
 #endif
 
     int ignore_options = 0;
     while (args[args_index] != NULL) {
-        if (!ignore_options && args[args_index][0] == '-') {
+        if (!ignore_options && args[args_index][0] == '-') { // Option
             if (args[args_index][1] == '-') {
-                if (args[args_index][2] == '\0') { // Option "--"
+                if (args[args_index][2] == '\0') { // Stand-alone option "--"
                     ignore_options = 1;
-                    continue;
 #if OPTPARSE_LONG_OPTIONS
-                } else {
+                } else { // Long option
                     execute_long_option(args[args_index] + 2, cmd->options);
 #endif
                 }
-            } else {
+            } else { // Short option
                 execute_short_option(args[args_index], cmd->options);
             }
-        } else {
+        } else { // Operand or subcommand
 #if OPTPARSE_SUBCOMMANDS
             if (cmd->subcommands) {
                 struct optparse_cmd *subcmd = cmd->subcommands;
                 while (subcmd->name != END_OF_SUBCOMMANDS) {
                     if (strcmp(args[args_index], subcmd->name) == 0) {
                         // Remove previous arguments, including the subcommand,
-                        // from argv (args will be set in the next iteration)
+                        // from argv (args will be set in the next iteration).
                         do {
                             (*argv)[(*argc)++] = args[++args_index];
                         } while (args[args_index]);
                         (*argv)[*argc] = NULL;
 
-                        // Continue parsing with the subcommand
+                        // Continue parsing with the subcommand.
                         parse(argc, argv, subcmd);
 
                         return;
@@ -792,21 +809,21 @@ static void parse(int *argc, char ***argv, struct optparse_cmd *cmd) {
                     subcmd++;
                 }
 
-                optparse_error("Unknown subcommand: \"%s\"\n", args[1]);
+                optparse_error("Unknown command: \"%s\"\n", args[args_index]);
             } else
 #endif
-                // Treat argument as an operand, adding it to the new argv
+                // Treat argument as an operand, adding it to the new argv.
                 (*argv)[(*argc)++] = args[args_index];
         }
 
-        if (args[args_index] != NULL) { // Could be NULL due to optparse_shift()
+        if (args[args_index] != NULL) { // Can be NULL due to optparse_shift().
             args_index++;
         }
     }
 
     (*argv)[*argc] = NULL;
 
-    // Run command's function on remaining operands
+    // Run command's function on remaining operands.
     if (cmd->function) {
         args_index = 0;
         cmd->function(*argc, *argv);
@@ -816,16 +833,17 @@ static void parse(int *argc, char ***argv, struct optparse_cmd *cmd) {
 
 /// "Help screen" functions ----------------------------------------------------
 
-#if OPTPARSE_HELP_WORD_WRAP
 // Prints a string using automatic word-wrapping.
 // stream: the stream the string will be printed to
 // str: the string to be printed
 // first_line_indent: the known column at which printing starts
 // indent: the indentation width (starting from line 2)
 static void blockprint(FILE *stream, char *str, int first_line_indent,
-    int indent, int end) {
+    int indent, int end)
+{
+#if OPTPARSE_HELP_WORD_WRAP
     if (str == NULL || str[0] == '\0') {
-        fprintf(stream, "\n");
+        fputc('\n', stream);
         return;
     }
 
@@ -843,12 +861,12 @@ static void blockprint(FILE *stream, char *str, int first_line_indent,
         int n = 0; // Number of characters to be printed on the current line
 
         while (n <= width) {
-            // Print early when encountering a newline character
+            // Print early when encountering a newline character.
             if (str[n] == '\n') {
                 fprintf(stream, "%.*s", ++n, str);
                 goto next;
             }
-            // Print and finish if string is shorter than width
+            // Print and finish if string is shorter than width.
             if (str[n] == '\0') {
                 fprintf(stream, "%s\n", str);
                 return;
@@ -857,7 +875,7 @@ static void blockprint(FILE *stream, char *str, int first_line_indent,
         }
         n--;
 
-        // Make sure not to truncate the last word
+        // Make sure not to truncate the last word.
         while (n > 0 && str[n] != ' ') {
             n--;
         }
@@ -869,7 +887,7 @@ static void blockprint(FILE *stream, char *str, int first_line_indent,
 
         next:
         str += n;
-        // Remove leading spaces before printing the next line
+        // Remove leading spaces before printing the next line.
         while (str[0] == ' ') {
             str++;
         }
@@ -879,34 +897,64 @@ static void blockprint(FILE *stream, char *str, int first_line_indent,
             width = end - indent;
         }
     }
-}
+#else
+    fprintf(stream, "%s\n", str);
 #endif
+}
 
-// Prints an option's usage information ("-a ARG") to a buffer.
-static void bprint_option_usage(char *buffer, struct optparse_opt *opt) {
-    if (opt->short_name) {
-        bprintf(buffer, "-%c", opt->short_name);
-    } else {
-        bprintf(buffer, "--%s", opt->long_name);
-    }
 
-    if (opt->arg) {
-        if (opt->arg[0] == '[' && opt->long_name) {
-            bprintf(buffer, "[=%s", opt->arg + 1);
-        } else {
-            bprintf(buffer, " %s", opt->arg);
+#if OPTPARSE_SUBCOMMANDS
+// Makes a command's parent command known to all of the command's subcommands.
+void initialize_subcommand_parents(struct optparse_cmd *cmd)
+{
+    if (cmd->subcommands) {
+        struct optparse_cmd *subcmd = cmd->subcommands;
+        while (subcmd->name != END_OF_SUBCOMMANDS) {
+            subcmd->_parent = cmd;
+            if (subcmd->subcommands) {
+                initialize_subcommand_parents(subcmd);
+            }
+            subcmd++;
         }
     }
 }
+#endif
+
+#if OPTPARSE_SUBCOMMANDS
+// Fills an array with the names of a command's parents, including the root
+// command, and the command itself, in the order in which they appear in the
+// command tree.
+void build_cmd_array(struct optparse_cmd *cmd, char *array[MAX_SUBCMD_DEPTH])
+{
+    char *temp_array[MAX_SUBCMD_DEPTH];
+
+    int i = 0;
+    do {
+        temp_array[i] = cmd->name;
+        cmd = cmd->_parent;
+        i++;
+    } while (cmd);
+
+    // Reverse
+    int size = i;
+    i = 0;
+    while (i < size) {
+        array[i] = temp_array[size - 1 - i];
+        i++;
+    }
+    array[i] = NULL;
+}
+#endif
 
 #if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
 // Prints all of a specified group's mutually exlusive options to a buffer.
 // Assumes there are at least 2 group members.
 static void bprint_exclusive_option_group(char *buffer,
-    struct optparse_opt *opt, int *printed_groups) {
+    struct optparse_opt *opt, int *printed_groups)
+{
     int group_index = opt->group;
 
-    // Don't print groups that have already been printed
+    // Don't print groups that have already been printed.
     if (printed_groups[group_index]) {
         return;
     }
@@ -922,45 +970,48 @@ static void bprint_exclusive_option_group(char *buffer,
     }
 
     bprintf(buffer, "]");
-    printed_groups[group_index] = 1; // Mark group as printed
+    printed_groups[group_index] = 1; // Mark group as printed.
 }
 #endif
 
 // Prints a command's usage.
+static void print_usage(FILE *stream, struct optparse_cmd *cmd)
+{
 #if OPTPARSE_SUBCOMMANDS
-static void print_usage(FILE *stream, struct optparse_cmd *cmd,
-    char **subcmd_chain) {
-#else
-static void print_usage(FILE *stream, struct optparse_cmd *cmd) {
+    static int parents_initialized;
+    if (parents_initialized == 0) {
+        initialize_subcommand_parents(optparse_main_cmd);
+    }
 #endif
+
 #if OPTPARSE_HELP_LETTER_CASE == 0
-    printf("Usage:");
+    fprintf(stream, "Usage:");
 #elif OPTPARSE_HELP_LETTER_CASE == 1
-    printf("usage:");
+    fprintf(stream, "usage:");
 #elif OPTPARSE_HELP_LETTER_CASE == 2
-    printf("USAGE:");
+    fprintf(stream, "USAGE:");
 #endif
 
-    char buffer[PRINT_BUFFER_SIZE] = { 0 };
+    char buffer[PRINT_BUFFER_SIZE];
 
-    // If a custom usage string is provided, print it and return
+    // If a custom usage string is provided, print it and return.
     if (cmd->usage) {
         bprintf(buffer, " %s\n", cmd->usage);
         goto print;
     }
 
-    // Print command name(s)
+    // Print command name(s).
 #if OPTPARSE_SUBCOMMANDS
-    if (subcmd_chain) {
-        while (*subcmd_chain) {
-            bprintf(buffer, " %s", *subcmd_chain);
-            subcmd_chain++;
-        }
-    } else
-#endif
+    char *cmd_array[MAX_SUBCMD_DEPTH];
+    build_cmd_array(cmd, cmd_array);
+    for (int i = 0; cmd_array[i]; i++) {
+        bprintf(buffer, " %s", cmd_array[i]);
+    }
+#else
     bprintf(buffer, " %s", optparse_main_cmd->name);
+#endif
 
-    // Print command's options
+    // Print command's options.
     if (cmd->options) {
 #if OPTPARSE_HELP_USAGE_STYLE == 1
 #if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
@@ -970,7 +1021,7 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd) {
         struct optparse_opt *opt = cmd->options;
         while (opt->short_name != (char) END_OF_OPTIONS) {
 #if OPTPARSE_HIDDEN_OPTIONS
-            // Don't print options marked as "hidden"
+            // Don't print options marked as "hidden".
             if (opt->hidden) {
                 opt++;
                 continue;
@@ -993,11 +1044,11 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd) {
             opt++;
         }
 #else
-        bprintf(buffer, "[" OPTPARSE_HELP_USAGE_OPTIONS_STRING "]");
+        bprintf(buffer, " [" OPTPARSE_HELP_USAGE_OPTIONS_STRING "]");
 #endif
     }
 
-    // Print command's operands
+    // Print command's operands.
     if (cmd->operands) {
         bprintf(buffer, " %s", cmd->operands);
     }
@@ -1008,12 +1059,13 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd) {
 
 // Prints a set of options (names, arguments, descriptions).
 // Returns the calculated divider width.
-static void print_options(FILE *stream, struct optparse_opt options[]) {
+static void print_options(FILE *stream, struct optparse_opt options[])
+{
     struct optparse_opt *opt = options;
+    int divider_width = 0;
 
     // Determine divider width -------------------------------------------------
     // (see section "Print" below to know where the numbers come from)
-    int divider_width = 0;
     while (opt->short_name != (char) END_OF_OPTIONS) {
 #if OPTPARSE_HIDDEN_OPTIONS
         if (opt->hidden) {
@@ -1041,31 +1093,36 @@ static void print_options(FILE *stream, struct optparse_opt options[]) {
         }
 #endif
 
-        // Snap divider to options
+        // Snap divider to options.
         if (len > divider_width && len <= OPTPARSE_HELP_MAX_DIVIDER_WIDTH) {
             divider_width = len;
         }
 
-        if (opt->arg) {
-            if (opt->arg[0] == '[') {
+        if (opt->arg_name) {
+#if OPTPARSE_ATTACHED_OPTION_ARGUMENTS
+            if (opt->arg_name[0] == '[') {
                 if (opt->long_name) {
-                    len += 1 + strlen(opt->arg);
+                    len += 1 + strlen(opt->arg_name);
                 } else {
-                    len += strlen(opt->arg);
+                    len += strlen(opt->arg_name);
                 }
-            } else {
-                len += 1 + strlen(opt->arg);
-            }
+            } else
+#endif
+            len += 1 + strlen(opt->arg_name);
         }
 
-        // Snap divider to arguments
-        if (len > divider_width && len <= OPTPARSE_HELP_MAX_DIVIDER_WIDTH) {
+        // Snap divider to arguments.
+        if (len > divider_width) {
             divider_width = len;
         }
         opt++;
     }
 
-    // Print -------------------------------------------------------------------
+    if (divider_width > OPTPARSE_HELP_MAX_DIVIDER_WIDTH) {
+        divider_width = OPTPARSE_HELP_MAX_DIVIDER_WIDTH;
+    }
+
+    // Print options -----------------------------------------------------------
     opt = options;
     while (opt->short_name != (char) END_OF_OPTIONS) {
 #if OPTPARSE_HIDDEN_OPTIONS
@@ -1075,85 +1132,65 @@ static void print_options(FILE *stream, struct optparse_opt options[]) {
         }
 #endif
 
-        int len = OPTPARSE_HELP_INDENTATION_WIDTH * 2;
+        int len = 0;
 
-        fprintf(stream, "%*c", OPTPARSE_HELP_INDENTATION_WIDTH, ' ');
+        len += fprintf(stream, "%*c", OPTPARSE_HELP_INDENTATION_WIDTH, ' ');
 
-        // Print option's short name
+        // Print option's short name.
         if (opt->short_name) {
-            fprintf(stream, "-%c", opt->short_name);
-            len += 2;
+            len += fprintf(stream, "-%c", opt->short_name);
 #if OPTPARSE_LONG_OPTIONS
             if (opt->long_name) {
-                fprintf(stream, ", ");
-                len += 2;
+                len += fprintf(stream, ", ");
             }
         } else if (OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS) {
-            fprintf(stream, "    ");
-            len += 4;
+            len += fprintf(stream, "    ");
 #endif
         }
 
 #if OPTPARSE_LONG_OPTIONS
-        // Print option's long name
+        // Print option's long name.
         if (opt->long_name) {
-            fprintf(stream, "--%s", opt->long_name);
-            len += 2 + strlen(opt->long_name);
+            len += fprintf(stream, "--%s", opt->long_name);
         }
 #endif
 
-        // Print option's arguments
-        if (opt->arg) {
-            if (opt->arg[0] == '[') {
+        // Print option's arguments.
+        if (opt->arg_name) {
+#if OPTPARSE_ATTACHED_OPTION_ARGUMENTS
+            if (opt->arg_name[0] == '[') {
                 if (opt->long_name) {
-                    fprintf(stream, "[=%s", opt->arg + 1);
-                    len += 1 + strlen(opt->arg);
+                    len += fprintf(stream, "[=%s", opt->arg_name + 1);
                 } else {
-                    fprintf(stream, "%s", opt->arg);
-                    len += strlen(opt->arg);
+                    len += fprintf(stream, "%s", opt->arg_name);
                 }
-            } else {
-                fprintf(stream, " %s", opt->arg);
-                len += 1 + strlen(opt->arg);
-            }
+            } else
+#endif
+            len += fprintf(stream, " %s", opt->arg_name);
         }
 
-        fprintf(stream, "%*c", OPTPARSE_HELP_INDENTATION_WIDTH, ' ');
+        len += fprintf(stream, "%*c", OPTPARSE_HELP_INDENTATION_WIDTH, ' ');
 
-        // Adjust spacing before printing option's description
+        // Adjust spacing before printing option's description.
         if (len < divider_width) {
-            for (int i = 0; i < divider_width - len; i++) {
-                fprintf(stream, " ");
-            }
-        } else if (len > OPTPARSE_HELP_MAX_LINE_WIDTH) {
-            fprintf(stream, "\n%*c", divider_width, ' ');
-        } else if (!OPTPARSE_HELP_FLOATING_DESCRIPTIONS
-            && len > divider_width) {
-            fprintf(stream, "\n");
-            for (int i = 0; i < divider_width; i++) {
-                fprintf(stream, " ");
-            }
+            len += fprintf(stream, "%*c", divider_width - len, ' ');
         }
 
-        // Print option's description
+        // Print option's description.
         if (opt->description) {
-#if !OPTPARSE_HELP_WORD_WRAP
-            fprintf(stream, "%s\n", opt->description);
-#else
+            if (len > divider_width) {
 #if OPTPARSE_HELP_FLOATING_DESCRIPTIONS
-            int first_line_indent;
-            if (len < divider_width || len > OPTPARSE_HELP_MAX_LINE_WIDTH) {
-                first_line_indent = divider_width;
-            } else {
-                first_line_indent = len;
-            }
-            blockprint(stream, opt->description, first_line_indent,
-                divider_width, OPTPARSE_HELP_MAX_LINE_WIDTH);
+                blockprint(stream, opt->description, len, divider_width,
+                    OPTPARSE_HELP_MAX_LINE_WIDTH);
 #else
-            blockprint(stream, opt->description, divider_width, divider_width,
-                OPTPARSE_HELP_MAX_LINE_WIDTH);
+                fprintf(stream, "\n%*c", divider_width, ' ');
+                blockprint(stream, opt->description, divider_width,
+                    divider_width, OPTPARSE_HELP_MAX_LINE_WIDTH);
 #endif
-#endif
+            } else {
+                blockprint(stream, opt->description, divider_width,
+                    divider_width, OPTPARSE_HELP_MAX_LINE_WIDTH);
+            }
         } else {
             fprintf(stream, "\n");
         }
@@ -1164,21 +1201,60 @@ static void print_options(FILE *stream, struct optparse_opt options[]) {
 
 #if OPTPARSE_SUBCOMMANDS
 // Prints a list of a command's subcommands.
-static void print_subcommands(FILE *stream, struct optparse_cmd *subcmd,
-    int divider_width) {
+static void print_subcommands(FILE *stream, struct optparse_cmd subcommands[])
+{
+    struct optparse_cmd *subcmd;
+    int divider_width = 0;
+
+    // Determine subcommand list's divider width.
+    subcmd = subcommands;
+    while (subcmd->name != END_OF_SUBCOMMANDS) {
+        int len = strlen(subcmd->name);
+        if (subcmd->operands) {
+            len += strlen(subcmd->operands) + 1;
+        }
+        if (len > divider_width) {
+            divider_width = len;
+        }
+        subcmd++;
+    }
+    divider_width += 2 * OPTPARSE_HELP_INDENTATION_WIDTH;
+    if (divider_width > OPTPARSE_HELP_MAX_DIVIDER_WIDTH) {
+        divider_width = OPTPARSE_HELP_MAX_DIVIDER_WIDTH;
+    }
+
+    // Print list of subcommands.
+    subcmd = subcommands;
     while (subcmd->name != END_OF_SUBCOMMANDS) {
         char buffer[PRINT_BUFFER_SIZE] = { 0 };
-        bprintf(buffer, "%*c%s%*c", OPTPARSE_HELP_INDENTATION_WIDTH, ' ',
-            subcmd->name, OPTPARSE_HELP_INDENTATION_WIDTH, ' ');
+        int n = bprintf(buffer, "%*c%s%s%s%*c",
+            OPTPARSE_HELP_INDENTATION_WIDTH, ' ',
+            subcmd->name,
+            subcmd->operands ? " " : "",
+            subcmd->operands ? subcmd->operands : "",
+            OPTPARSE_HELP_INDENTATION_WIDTH, ' ');
+        if (n < divider_width) {
+            bprintf(buffer, "%*c", divider_width - n, ' ');
+        }
         fprintf(stream, "%s", buffer);
 
-        size_t len = strlen(buffer);
-        if (len < divider_width) {
-            len = divider_width - len;
-            fprintf(stream, "%*c", (int) len, ' ');
+        if (subcmd->about) {
+            if (n > divider_width) {
+#if OPTPARSE_HELP_FLOATING_DESCRIPTIONS
+                blockprint(stream, subcmd->about, n, divider_width,
+                    OPTPARSE_HELP_MAX_LINE_WIDTH);
+#else
+                fprintf(stream, "\n%*c", divider_width, ' ');
+                blockprint(stream, subcmd->about, divider_width, divider_width,
+                    OPTPARSE_HELP_MAX_LINE_WIDTH);
+#endif
+            } else {
+                blockprint(stream, subcmd->about, divider_width, divider_width,
+                    OPTPARSE_HELP_MAX_LINE_WIDTH);
+            }
+        } else {
+            fprintf(stream, "\n");
         }
-        blockprint(stream, subcmd->about, len, divider_width,
-            OPTPARSE_HELP_MAX_LINE_WIDTH);
 
         subcmd++;
     }
@@ -1188,31 +1264,23 @@ static void print_subcommands(FILE *stream, struct optparse_cmd *subcmd,
 // Prints a command's complete help information: about, usage, description,
 // options, subcommands.
 // cmd_chain: a NULL-terminated array that contains a valid command chain
-#if OPTPARSE_SUBCOMMANDS
-static void print_help(FILE *stream, struct optparse_cmd *cmd,
-    char **cmd_chain) {
-#else
-static void print_help(FILE *stream, struct optparse_cmd *cmd) {
-#endif
-    if (cmd->about) {
+static void print_help(FILE *stream, struct optparse_cmd *cmd, int exit_status)
+{
+    if (stream != stderr && cmd->about) {
         blockprint(stream, cmd->about, 0, 0, OPTPARSE_HELP_MAX_LINE_WIDTH);
     }
 
-    // Print command's usage
-#if OPTPARSE_SUBCOMMANDS
-    print_usage(stream, cmd, cmd_chain);
-#else
+    // Print command's usage.
     print_usage(stream, cmd);
-#endif
 
-    // Print command's description
+    // Print command's description.
     if (cmd->description) {
         fprintf(stream, "\n");
         blockprint(stream, cmd->description, 0, 0,
             OPTPARSE_HELP_MAX_LINE_WIDTH);
     }
 
-    // Print command's options
+    // Print command's options.
     if (cmd->options) {
 #if OPTPARSE_HELP_LETTER_CASE == 0
         fprintf(stream, "\nOptions:\n");
@@ -1225,89 +1293,50 @@ static void print_help(FILE *stream, struct optparse_cmd *cmd) {
     }
 
 #if OPTPARSE_SUBCOMMANDS
-    // Print list of subcommands
+    // Print list of subcommands.
     if (cmd->subcommands) {
 #if OPTPARSE_HELP_LETTER_CASE == 0
-        printf("\nCommands:\n");
+        fprintf(stream, "\nCommands:\n");
 #elif OPTPARSE_HELP_LETTER_CASE == 1
-        printf("\ncommands:\n");
+        fprintf(stream, "\ncommands:\n");
 #elif OPTPARSE_HELP_LETTER_CASE == 2
-        printf("\nCOMMANDS:\n");
+        fprintf(stream, "\nCOMMANDS:\n");
 #endif
-
-        // Determine subcommand list's divider width
-        int divider_width = 0;
-        struct optparse_cmd *subcmd = cmd->subcommands;
-        while (subcmd->name != END_OF_SUBCOMMANDS) {
-            int len = strlen(subcmd->name);
-            if (len > divider_width) {
-                divider_width = len;
-            }
-            subcmd++;
-        }
-        divider_width += 2 * OPTPARSE_HELP_INDENTATION_WIDTH;
-
-        print_subcommands(stream, cmd->subcommands, divider_width);
+        print_subcommands(stream, cmd->subcommands);
     }
 #endif
 
-    if (stream == stdout) {
-        exit(EXIT_SUCCESS);
-    } else {
-        exit(EXIT_FAILURE);
-    }
+    exit(exit_status);
 }
 
 #if OPTPARSE_SUBCOMMANDS
 // Parses a command chain and returns the subcommmand the chain leads to.
 // Errors out if the chain is invalid.
 static struct optparse_cmd *read_cmd_chain(struct optparse_cmd *cmd,
-    char **argv) {
-    if (*argv) {
-        if (cmd->subcommands) {
-            struct optparse_cmd *subcmd = cmd->subcommands;
-            while (subcmd->name != END_OF_SUBCOMMANDS) {
-                if (strcmp(subcmd->name, *argv) == 0) {
-                    return read_cmd_chain(subcmd, ++argv);
-                }
-                subcmd++;
+    char **argv)
+{
+    if (*argv && cmd->subcommands) {
+        struct optparse_cmd *subcmd = cmd->subcommands;
+        while (subcmd->name != END_OF_SUBCOMMANDS) {
+            if (strcmp(subcmd->name, *argv) == 0) {
+                return read_cmd_chain(subcmd, ++argv);
             }
+            subcmd++;
         }
 
         optparse_error("Unknown command: \"%s\"\n", *argv);
-        return NULL;
+        return NULL; // To satisfy the compiler.
     } else {
         return cmd;
     }
 }
+#endif
 
-// Finds a command in a command tree, building its full command chain string.
-// haystack: the current command tree
-// needle: the command to be found
-// cmd_chain: array in which the command chain is built
-// index: cmd_chain's current index
-static int build_cmd_chain(struct optparse_cmd *haystack,
-    struct optparse_cmd *needle, char **cmd_chain, int index) {
-    cmd_chain[index] = haystack->name;
-
-    if (haystack == needle) {
-        return 1;
-    } else if (haystack->subcommands) {
-        struct optparse_cmd *subcmd = haystack->subcommands;
-        while (subcmd->name != END_OF_SUBCOMMANDS) {
-            if (build_cmd_chain(subcmd, needle, cmd_chain, index + 1)) {
-                return 1;
-            }
-            subcmd++;
-        }
-    }
-
-    return 0;
-}
-
+#if OPTPARSE_SUBCOMMANDS
 #ifndef NDEBUG
 // Returns a command tree's subcommand depth.
-static int subcmd_depth(struct optparse_cmd *cmd, int depth) {
+static int subcmd_depth(struct optparse_cmd *cmd, int depth)
+{
     if (cmd->subcommands) {
         int max_depth = 0;
         cmd = cmd->subcommands;
@@ -1329,9 +1358,10 @@ static int subcmd_depth(struct optparse_cmd *cmd, int depth) {
 /// Public functions -----------------------------------------------------------
 
 // Parses command line options as described in the provided command structure.
-void optparse_parse(struct optparse_cmd *cmd, int *argc, char ***argv) {
+void optparse_parse(struct optparse_cmd *cmd, int *argc, char ***argv)
+{
 #if OPTPARSE_SUBCOMMANDS
-    // Make sure the subcommand tree is not deeper than allowed
+    // Make sure the subcommand tree is not deeper than allowed.
     assert(subcmd_depth(cmd, 0) < MAX_SUBCMD_DEPTH);
 #endif
 
@@ -1343,7 +1373,8 @@ void optparse_parse(struct optparse_cmd *cmd, int *argc, char ***argv) {
 }
 
 // Advances the parser index by 1 and returns the next command line argument.
-char *optparse_shift(void) {
+char *optparse_shift(void)
+{
     if (args == NULL) {
         return NULL;
     }
@@ -1356,7 +1387,8 @@ char *optparse_shift(void) {
 }
 
 // Undoes the previously called optparse_shift().
-char *optparse_unshift(void) {
+char *optparse_unshift(void)
+{
     if (args == NULL) {
         return NULL;
     }
@@ -1369,42 +1401,47 @@ char *optparse_unshift(void) {
 }
 
 // Prints the currently active command's help information.
-void optparse_print_help(void) {
+void optparse_print_help(void)
+{
 #if OPTPARSE_SUBCOMMANDS
-    if (active_cmd != optparse_main_cmd && optparse_main_cmd->subcommands) {
-        char *cmd_chain[MAX_SUBCMD_DEPTH] = { 0 };
-        build_cmd_chain(optparse_main_cmd, active_cmd, cmd_chain, 0);
-        print_help(help_stream, active_cmd, cmd_chain);
-    } else {
-        print_help(help_stream, optparse_main_cmd, NULL);
-    }
+    print_help(help_stream, active_cmd, EXIT_SUCCESS);
 #else
-    print_help(help_stream, optparse_main_cmd);
+    print_help(help_stream, optparse_main_cmd, EXIT_SUCCESS);
 #endif
 }
 
-// Prints the currently active command's help information to stderr.
-void optparse_print_help_stderr(void) {
-    help_stream = stderr;
-    optparse_print_help();
+// Same as optparse_print_help, but prints to the specified stream. Exits with
+// the provided exit status.
+void optparse_fprint_help(FILE *stream, int exit_status)
+{
+#if OPTPARSE_SUBCOMMANDS
+    print_help(stream, active_cmd, exit_status);
+#else
+    print_help(stream, optparse_main_cmd, exit_status);
+#endif
+}
+
+// Prints the currently active command's usage information only.
+void optparse_fprint_usage(FILE *stream)
+{
+#if OPTPARSE_SUBCOMMANDS
+    print_usage(stream, active_cmd);
+#else
+    print_usage(stream, optparse_main_cmd);
+#endif
 }
 
 #if OPTPARSE_SUBCOMMANDS
 // Prints a subcommand's help by parsing remaining operands. To be used as a
 // command structure's .function member.
-void optparse_print_help_subcmd(int argc, char **argv) {
+void optparse_print_help_subcmd(int argc, char **argv)
+{
     argv++; // To ignore the program's file name
     if (*argv) {
         struct optparse_cmd *subcmd = read_cmd_chain(optparse_main_cmd, argv);
-
-        char *cmd_chain[MAX_SUBCMD_DEPTH] = { optparse_main_cmd->name };
-        for (int i = 1; *argv != NULL; i++, argv++) {
-            cmd_chain[i] = *argv;
-        }
-
-        print_help(stdout, subcmd, cmd_chain);
+        print_help(stdout, subcmd, EXIT_SUCCESS);
     } else {
-        print_help(stdout, optparse_main_cmd, NULL);
+        print_help(stdout, optparse_main_cmd, EXIT_SUCCESS);
     }
 }
 #endif
