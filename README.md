@@ -194,9 +194,9 @@ Members starting with an underscore ("_") are for internal use only and should b
 struct optparse_opt {
     char short_name;
     char *long_name;
-    char *arg;
-    void *dest;
-    enum optparse_data_type data_type;
+    char *arg_name;
+    enum optparse_data_type arg_data_type;
+    void *arg_dest;
     int *flag;
     enum optparse_flag_type flag_type;
     void (*function)(void);
