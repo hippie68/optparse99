@@ -163,13 +163,8 @@ struct optparse_opt {
     enum optparse_data_type arg_data_type;
                             // If set, the parsed option-argument will be
                             // converted to a different data type.
-    char *arg_delim;        // If set, the option-argument will be treated as a
-                            // list whose items are separated by any of this
-                            // string's characters.
     void *arg_dest;         // The memory location the (type-converted)
                             // option-argument is saved to.
-    int *arg_dest_size;     // If .arg_delim is set, this variable will be used
-                            // to save the number of the list's items.
     int *flag;              // A pointer to an integer variable that is to be
                             // used as specified by .flag_type.
     enum optparse_flag_type flag_type;
