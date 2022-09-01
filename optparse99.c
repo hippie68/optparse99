@@ -30,10 +30,19 @@ SOFTWARE.
 
 #include <assert.h>
 #include <ctype.h>
+#include <errno.h>
+#if OPTPARSE_FLOATING_POINT_SUPPORT
+#include <float.h>
+#endif
+#include <limits.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
+#if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
+#include <stdint.h>
+#endif
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // These can be arbitrarily changed.
@@ -81,243 +90,6 @@ static FILE *help_stream; // The stream help information is printed to.
 #define OPTPARSE_PRINT_HELP_ON_ERROR true
 #endif
 
-/// Function "strtox" ----------------------------------------------------------
-
-#include <ctype.h>
-#include <errno.h>
-#if OPTPARSE_FLOATING_POINT_SUPPORT
-#include <float.h>
-#endif
-#include <stdbool.h>
-#if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
-#include <stdint.h>
-#endif
-#include <stdlib.h>
-#include <string.h>
-#include <limits.h>
-
-// Converts a string to a different data type.
-// Return value:  0: success
-//                1: string is not convertible
-//               -1: converted data is out of range
-// Example:
-//     int i;
-//     int retval = strtox("512", &i, DATA_TYPE_INT);
-int strtox(char *str, void *x, enum optparse_data_type data_type)
-{
-    if (str == NULL) {
-        return 1;
-    }
-
-    char *endptr = NULL;
-    errno = 0;
-
-    switch (data_type) {
-        case DATA_TYPE_STR:
-            *(char **) x = str;
-            break;
-        case DATA_TYPE_CHAR:
-            if (strlen(str) > 1) {
-                errno = ERANGE;
-            }
-            *(char *) x = str[0];
-            break;
-        case DATA_TYPE_SCHAR:
-            if (strlen(str) > 1) {
-                errno = ERANGE;
-            }
-            *(signed char *) x = str[0];
-            break;
-        case DATA_TYPE_UCHAR:
-            if (strlen(str) > 1) {
-                errno = ERANGE;
-            }
-            *(unsigned char *) x = str[0];
-            break;
-        case DATA_TYPE_SHRT:
-            {
-                long result = strtol(str, &endptr, 0);
-                if (result < SHRT_MIN || result > SHRT_MAX) {
-                    errno = ERANGE;
-                }
-                *(short *) x = (short) result;
-            }
-            break;
-        case DATA_TYPE_USHRT:
-            {
-                unsigned long result = strtoul(str, &endptr, 0);
-                if (result > USHRT_MAX) {
-                    errno = ERANGE;
-                }
-                *(unsigned short *) x = (unsigned short) result;
-            }
-            break;
-        case DATA_TYPE_INT:
-            {
-                long result = strtol(str, &endptr, 0);
-                if (result < INT_MIN || result > INT_MAX) {
-                    errno = ERANGE;
-                }
-                *(int *) x = (int) result;
-            }
-            break;
-        case DATA_TYPE_UINT:
-            {
-                unsigned long result = strtoul(str, &endptr, 0);
-                if (result > UINT_MAX) {
-                    errno = ERANGE;
-                }
-                *(unsigned int *) x = (unsigned int) result;
-            }
-            break;
-        case DATA_TYPE_LONG:
-            *(long *) x = strtol(str, &endptr, 0);
-            break;
-        case DATA_TYPE_ULONG:
-            *(unsigned long *) x = strtoul(str, &endptr, 0);
-            break;
-        case DATA_TYPE_LLONG:
-            *(long long *) x = strtoll(str, &endptr, 0);
-            break;
-        case DATA_TYPE_ULLONG:
-            *(unsigned long long *) x = strtoull(str, &endptr, 0);
-            break;
-#if OPTPARSE_FLOATING_POINT_SUPPORT
-        case DATA_TYPE_FLT:
-            {
-                double result = strtod(str, &endptr);
-                if (result < FLT_MIN || result > FLT_MAX) {
-                    errno = ERANGE;
-                }
-                *(float *) x = (float) result;
-            }
-            break;
-        case DATA_TYPE_DBL:
-            *(double *) x = strtod(str, &endptr);
-            break;
-        case DATA_TYPE_LDBL:
-            *(long double *) x = strtold(str, &endptr);
-            break;
-#endif
-        case DATA_TYPE_BOOL:
-            {
-                int len = strlen(str);
-                char temp[len + 1];
-                strcpy(temp, str);
-                for (int i = 0; i < len; i++) {
-                    temp[i] = tolower(temp[i]);
-                }
-                if (strcmp(temp, "true") == 0) {
-                    *(bool *) x = true;
-                } else if (strcmp(temp, "false") == 0) {
-                    *(bool *) x = false;
-                } else if (strcmp(temp, "enabled") == 0) {
-                    *(bool *) x = true;
-                } else if (strcmp(temp, "disabled") == 0) {
-                    *(bool *) x = false;
-                } else if (strcmp(temp, "yes") == 0) {
-                    *(bool *) x = true;
-                } else if (strcmp(temp, "no") == 0) {
-                    *(bool *) x = false;
-                } else if (strcmp(temp, "on") == 0) {
-                    *(bool *) x = true;
-                } else if (strcmp(temp, "off") == 0) {
-                    *(bool *) x = false;
-                } else {
-                    int result = strtox(str, x, DATA_TYPE_INT);
-                    if (result == 1 || result == 0) {
-                        *(bool *) x = result;
-                    } else {
-                        endptr = str;
-                    }
-                }
-            }
-            break;
-#if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
-        case DATA_TYPE_INT8:
-            {
-                long result = strtol(str, &endptr, 0);
-                if (result < INT8_MIN || result > INT8_MAX) {
-                    errno = ERANGE;
-                }
-                *(int8_t *) x = (int8_t) result;
-            }
-            break;
-        case DATA_TYPE_UINT8:
-            {
-                unsigned long result = strtoul(str, &endptr, 0);
-                if (result > UINT8_MAX) {
-                    errno = ERANGE;
-                }
-                *(uint8_t *) x = (uint8_t) result;
-            }
-            break;
-        case DATA_TYPE_INT16:
-            {
-                long result = strtol(str, &endptr, 0);
-                if (result < INT16_MIN || result > INT16_MAX) {
-                    errno = ERANGE;
-                }
-                *(int16_t *) x = (int16_t) result;
-            }
-            break;
-        case DATA_TYPE_UINT16:
-            {
-                unsigned long result = strtoul(str, &endptr, 0);
-                if (result > UINT16_MAX) {
-                    errno = ERANGE;
-                }
-                *(uint16_t *) x = (uint16_t) result;
-            }
-            break;
-        case DATA_TYPE_INT32:
-            {
-                long result = strtol(str, &endptr, 0);
-                if (result < INT32_MIN || result > INT32_MAX) {
-                    errno = ERANGE;
-                }
-                *(int32_t *) x = (int32_t) result;
-            }
-            break;
-        case DATA_TYPE_UINT32:
-            {
-                unsigned long result = strtoul(str, &endptr, 0);
-                if (result > UINT32_MAX) {
-                    errno = ERANGE;
-                }
-                *(uint32_t *) x = (uint32_t) result;
-            }
-            break;
-        case DATA_TYPE_INT64:
-            {
-                long long result = strtoll(str, &endptr, 0);
-                if (result < INT64_MIN || result > INT64_MAX) {
-                    errno = ERANGE;
-                }
-                *(int64_t *) x = (int64_t) result;
-            }
-            break;
-        case DATA_TYPE_UINT64:
-            {
-                unsigned long long result = strtoull(str, &endptr, 0);
-                if (result > UINT64_MAX) {
-                    errno = ERANGE;
-                }
-                *(uint64_t *) x = (uint64_t) result;
-            }
-            break;
-#endif
-    }
-
-    if (endptr && (endptr == str || endptr[0] != '\0')) {
-        return 1;
-    } else if (errno == ERANGE) {
-        return -1;
-    } else {
-        return 0;
-    }
-}
-
 /// Private functions ----------------------------------------------------------
 
 // Prints an error message and quits. Should be used for parsing errors only.
@@ -363,28 +135,141 @@ static void bprint_option_usage(char *buffer, struct optparse_opt *opt)
     }
 }
 
-// Executes an option structure's tasks.
-static void execute_option(struct optparse_opt *opt, char *arg)
+// Returns a data type's size.
+int get_data_type_size(enum optparse_data_type data_type)
 {
-    // Set option's flag.
-    if (opt->flag) {
-        switch (opt->flag_type) {
-            case FLAG_TYPE_SET_TRUE:
-                *(int *) opt->flag = 1;
+    switch (data_type) {
+        case DATA_TYPE_STR:
+            return sizeof (char *);
+        case DATA_TYPE_CHAR:
+        case DATA_TYPE_SCHAR:
+        case DATA_TYPE_UCHAR:
+            return 1;
+        case DATA_TYPE_INT:
+        case DATA_TYPE_UINT:
+            return sizeof (int);
+        case DATA_TYPE_LONG:
+        case DATA_TYPE_ULONG:
+            return sizeof (long);
+        case DATA_TYPE_LLONG:
+        case DATA_TYPE_ULLONG:
+            return sizeof (long long);
+#if OPTPARSE_FLOATING_POINT_SUPPORT
+        case DATA_TYPE_FLT:
+            return sizeof (float);
+        case DATA_TYPE_DBL:
+            return sizeof (double);
+        case DATA_TYPE_LDBL:
+            return sizeof (long double);
+#endif
+        case DATA_TYPE_BOOL:
+            return sizeof (_Bool);
+#if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
+        case DATA_TYPE_INT8:
+        case DATA_TYPE_UINT8:
+            return 1;
+        case DATA_TYPE_INT16:
+        case DATA_TYPE_UINT16:
+            return 2;
+        case DATA_TYPE_INT32:
+        case DATA_TYPE_UINT32:
+            return 4;
+        case DATA_TYPE_INT64:
+        case DATA_TYPE_UINT64:
+            return 8;
+#endif
+        default:
+            return 0;
+    }
+}
+
+// Converts a non-literal string that has the form of a list into an array of
+// specified data type. The string will be altered and cannot be used anymore in
+// its original form. The array's data type must match the specified data type.
+// To suppress compiler warnings, the array pointer can be explicitly cast to
+// *void: "strtoarr(..., (void *) &array, ...);".
+// max_array_size:   0: Memory will be allocated for the array automatically.
+//                      If the array is no longer needed, free() must be called.
+//                 > 0: Memory is assumed to be already allocated. Up to
+//                      max_array_size array items will be populated.
+// Return value:    -1: Error; the list represented by the string is larger
+//                      than max_array_size. Not all list items could be stored.
+//                   0: Error; string or delim is NULL, or data_type is
+//                      unknown. If this error happens, the array has not been
+//                      allocated yet - no need to call free().
+//                 > 0: Success; the return value represents the array's size.
+ssize_t strtoarr(char *string, void **array, char *delim,
+    enum optparse_data_type data_type, size_t max_array_size)
+{
+    if (string == NULL || delim == NULL) {
+        return 0;
+    }
+
+    // Get temporary array size.
+    size_t array_size = 1;
+    char *c = string;
+    while (*c != '\0') {
+        for (size_t i = 0; i < strlen(delim); i++) {
+            if (*c == delim[i]) {
+                array_size++;
                 break;
-            case FLAG_TYPE_SET_FALSE:
-                *(int *) opt->flag = 0;
-                break;
-            case FLAG_TYPE_INCREMENT:
-                *(int *) opt->flag += 1;
-                break;
-            case FLAG_TYPE_DECREMENT:
-                *(int *) opt->flag -= 1;
-                break;
+            }
+        }
+        c++;
+    }
+
+    int data_type_size = get_data_type_size(data_type);
+
+    // Allocate temporary array size.
+    if (max_array_size == 0) {
+        *array = malloc(array_size * data_type_size);
+        if (*array == NULL) {
+            optparse_error("Out of memory.\n");
         }
     }
 
-    // Used to temporarily hold a type-converted option-argument.
+    // Convert list items to specified data type and store them in the array.
+    array_size = 0;
+    char *list_item = strtok(string, delim);
+    while (list_item != NULL) {
+        int ret = strtox(list_item, ((char *) *array) + array_size
+            * data_type_size, data_type);
+        if (ret) {
+            if (max_array_size == 0) {
+                free(*array);
+            }
+
+            if (ret == 1) {
+                optparse_error("List item not valid: \"%s\"\n", list_item);
+            } else if (ret == -1) {
+                optparse_error("List item out of range: \"%s\"\n", list_item);
+            }
+        }
+
+        array_size++;
+        if (array_size == max_array_size) {
+            return -1;
+        }
+
+        list_item = strtok(NULL, delim);
+    }
+
+    // Allocate final array size.
+    if (max_array_size == 0) {
+        *array = realloc(*array, array_size * data_type_size);
+        if (*array == NULL) {
+            free(*array);
+            optparse_error("Out of memory.\n");
+        }
+    }
+
+    return array_size;
+}
+
+// Executes an option structure's tasks.
+// arg: the option's option-argument; NULL if none provided by the user.
+static void execute_option(struct optparse_opt *opt, char *arg)
+{
     union {
         char t_char;
         signed char t_schar;
@@ -413,87 +298,76 @@ static void execute_option(struct optparse_opt *opt, char *arg)
         int64_t t_int64;
         uint64_t t_uint64;
 #endif
-    } conv_arg;
+    } conv_arg;              // Used to temporarily hold a single type-converted
+                             // option-argument.
+    void *list_array = NULL; // Used to temporarily or permanently store a
+                             // type-converted list.
+    size_t list_size = 0;    // The converted list's size.
+    char *oarg = arg;        // Optionally used to back up the original
+                             // option-argument.
 
-    // Type-convert the option-argument.
-    if (opt->arg_data_type) {
-        int ret;
-        ret = strtox(arg, &conv_arg, opt->arg_data_type);
-        if (ret == 1) {
-            optparse_error("Argument not valid: \"%s\"\n", arg);
-        } else if (ret == -1) {
-            optparse_error("Value out of range: \"%s\"\n", arg);
+    // Set option's flag.
+    if (opt->flag != NULL) {
+        switch (opt->flag_type) {
+            case FLAG_TYPE_SET_TRUE:
+                *(int *) opt->flag = 1;
+                break;
+            case FLAG_TYPE_SET_FALSE:
+                *(int *) opt->flag = 0;
+                break;
+            case FLAG_TYPE_INCREMENT:
+                *(int *) opt->flag += 1;
+                break;
+            case FLAG_TYPE_DECREMENT:
+                *(int *) opt->flag -= 1;
+                break;
         }
     }
 
-    // Store (type-converted) option-argument.
-    if (opt->arg_dest) {
-        if (opt->arg_data_type == DATA_TYPE_STR) {
-            *(char **) opt->arg_dest = arg;
-        } else {
-            size_t n;
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wswitch" // DATA_TYPE_STR is already checked.
-            switch (opt->arg_data_type) {
-                case DATA_TYPE_CHAR:
-                case DATA_TYPE_SCHAR:
-                case DATA_TYPE_UCHAR:
-                    n = 1;
-                    break;
-                case DATA_TYPE_SHRT:
-                case DATA_TYPE_USHRT:
-                    n = sizeof (short);
-                    break;
-                case DATA_TYPE_INT:
-                case DATA_TYPE_UINT:
-                    n = sizeof (int);
-                    break;
-                case DATA_TYPE_LONG:
-                case DATA_TYPE_ULONG:
-                    n = sizeof (long);
-                    break;
-                case DATA_TYPE_LLONG:
-                case DATA_TYPE_ULLONG:
-                    n = sizeof (long long);
-                    break;
-#if OPTPARSE_FLOATING_POINT_SUPPORT
-                case DATA_TYPE_FLT:
-                    n = sizeof (float);
-                    break;
-                case DATA_TYPE_DBL:
-                    n = sizeof (double);
-                    break;
-                case DATA_TYPE_LDBL:
-                    n = sizeof (long double);
-                    break;
-#endif
-                case DATA_TYPE_BOOL:
-                    n = sizeof (_Bool);
-                    break;
-#if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
-                case DATA_TYPE_INT8:
-                case DATA_TYPE_UINT8:
-                    n = 1;
-                    break;
-                case DATA_TYPE_INT16:
-                case DATA_TYPE_UINT16:
-                    n = 2;
-                    break;
-                case DATA_TYPE_INT32:
-                case DATA_TYPE_UINT32:
-                    n = 4;
-                    break;
-                case DATA_TYPE_INT64:
-                case DATA_TYPE_UINT64:
-                    n = 8;
-                    break;
-#endif
+    // Type-convert the option-argument.
+    if (arg) {
+        if (opt->arg_delim) { // Option-argument is a list.
+            // Back up the original option-argument, if necessary.
+            if (opt->function && opt->function_type == FUNCTION_TYPE_OARG) {
+                oarg = malloc(strlen(arg) + 1);
+                if (oarg == NULL) {
+                    optparse_error("Out of memory.\n");
+                }
+                strcpy(oarg, arg);
             }
-#pragma GCC diagnostic pop
 
-            memcpy(opt->arg_dest, &conv_arg, n);
+            ssize_t result = strtoarr(arg, &list_array, opt->arg_delim,
+                opt->arg_data_type, 0);
+            list_size = result; // Will be > 0 due to arg, .arg_delim != NULL.
+        } else if (opt->arg_data_type) { // Option-argument is a single value.
+            int ret;
+            ret = strtox(arg, &conv_arg, opt->arg_data_type);
+            if (ret == 1) {
+                optparse_error("Argument not valid: \"%s\"\n", arg);
+            } else if (ret == -1) {
+                optparse_error("Value out of range: \"%s\"\n", arg);
+            }
         }
+
+        // Store the (type-converted) option-argument...
+        if (opt->arg_storage) {
+            if (opt->arg_delim) {
+                *(void **) opt->arg_storage = list_array;
+            } else {
+                if (opt->arg_data_type == DATA_TYPE_STR) {
+                    *(char **) opt->arg_storage = arg;
+                } else {
+                    size_t n = get_data_type_size(opt->arg_data_type);
+                    memcpy(opt->arg_storage, &conv_arg, n);
+                }
+                list_size = 1;
+            }
+        }
+    }
+
+    // Store the storage size.
+    if (opt->arg_storage_size) {
+        *opt->arg_storage_size = list_size;
     }
 
     // Call option's function.
@@ -501,17 +375,16 @@ static void execute_option(struct optparse_opt *opt, char *arg)
         switch (opt->function_type) {
             case FUNCTION_TYPE_AUTO:
                 if (opt->arg_name) {
-                    if (opt->arg_data_type) {
-                        goto type_targ;
+                    if (opt->arg_delim) {
+                        goto type_targ_array;
                     } else {
-                        goto type_oarg;
+                        goto type_targ;
                     }
                 } else {
                     goto type_void;
                 }
             case FUNCTION_TYPE_OARG:
-                type_oarg:
-                ((void (*)(char *)) opt->function)(arg);
+                ((void (*)(char *)) opt->function)(oarg);
                 break;
             case FUNCTION_TYPE_TARG:
                 type_targ:
@@ -601,11 +474,135 @@ static void execute_option(struct optparse_opt *opt, char *arg)
 #endif
                 }
                 break;
+            case FUNCTION_TYPE_OARG_ARRAY:
+                {
+                    char **array = NULL;
+                    ssize_t size = strtoarr(oarg, (void *) &array,
+                        opt->arg_delim, DATA_TYPE_STR, 0);
+                    ((void (*)(size_t, char **)) opt->function)(size, array);
+                    if (array) {
+                        free(array);
+                    }
+                }
+                break;
+            case FUNCTION_TYPE_TARG_ARRAY:
+                type_targ_array:
+                switch (opt->arg_data_type) {
+                    case DATA_TYPE_STR:
+                        ((void (*)(size_t, char **)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_CHAR:
+                        ((void (*)(size_t, char *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_SCHAR:
+                        ((void (*)(size_t, signed char *)) opt->function)(
+                            list_size, list_array);
+                        break;
+                    case DATA_TYPE_UCHAR:
+                        ((void (*)(size_t, unsigned char *)) opt->function)(
+                            list_size, list_array);
+                        break;
+                    case DATA_TYPE_SHRT:
+                        ((void (*)(size_t, short *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_USHRT:
+                        ((void (*)(size_t, unsigned short *)) opt->function)(
+                            list_size, list_array);
+                        break;
+                    case DATA_TYPE_INT:
+                        ((void (*)(size_t, int *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_UINT:
+                        ((void (*)(size_t, unsigned int *)) opt->function)(
+                            list_size, list_array);
+                        break;
+                    case DATA_TYPE_LONG:
+                        ((void (*)(size_t, long *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_ULONG:
+                        ((void (*)(size_t, unsigned long *)) opt->function)(
+                            list_size, list_array);
+                        break;
+                    case DATA_TYPE_LLONG:
+                        ((void (*)(size_t, long long *)) opt->function)(
+                            list_size, list_array);
+                        break;
+                    case DATA_TYPE_ULLONG:
+                        ((void (*)(size_t, unsigned long long *)) opt->function)
+                            (list_size, list_array);
+                        break;
+#if OPTPARSE_FLOATING_POINT_SUPPORT
+                    case DATA_TYPE_FLT:
+                        ((void (*)(size_t, float *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_DBL:
+                        ((void (*)(size_t, double *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_LDBL:
+                        ((void (*)(size_t, long double *)) opt->function)(
+                            list_size, list_array);
+                        break;
+#endif
+                    case DATA_TYPE_BOOL:
+                        ((void (*)(size_t, _Bool *)) opt->function)(list_size,
+                            list_array);
+                        break;
+#if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
+                    case DATA_TYPE_INT8:
+                        ((void (*)(size_t, int8_t *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_UINT8:
+                        ((void (*)(size_t, uint8_t *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_INT16:
+                        ((void (*)(size_t, int16_t *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_UINT16:
+                        ((void (*)(size_t, uint16_t *)) opt->function)(
+                            list_size, list_array);
+                        break;
+                    case DATA_TYPE_INT32:
+                        ((void (*)(size_t, int32_t *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_UINT32:
+                        ((void (*)(size_t, uint32_t *)) opt->function)(
+                            list_size, list_array);
+                        break;
+                    case DATA_TYPE_INT64:
+                        ((void (*)(size_t, int64_t *)) opt->function)(list_size,
+                            list_array);
+                        break;
+                    case DATA_TYPE_UINT64:
+                        ((void (*)(size_t, uint64_t *)) opt->function)(
+                            list_size, list_array);
+                        break;
+#endif
+                }
+                break;
             case FUNCTION_TYPE_VOID:
                 type_void:
                 ((void (*)(void)) opt->function)();
                 break;
         }
+    }
+
+    // List-related clean-up.
+    if (list_array != NULL && opt->arg_storage == NULL) {
+        free(list_array);
+    }
+    if (oarg != arg) {
+        free(oarg);
     }
 }
 
@@ -831,7 +828,7 @@ static void parse(int *argc, char ***argv, struct optparse_cmd *cmd)
 
 }
 
-/// "Help screen" functions ----------------------------------------------------
+/// Private "help screen" functions --------------------------------------------
 
 // Prints a string using automatic word-wrapping.
 // stream: the stream the string will be printed to
@@ -1355,6 +1352,44 @@ static int subcmd_depth(struct optparse_cmd *cmd, int depth)
 #endif
 #endif
 
+#ifndef NDEBUG
+// Recursively checks a command's option structure for impossible/faulty setups.
+static void check_cmd(struct optparse_cmd *cmd)
+{
+    // The command's name is required.
+    assert(cmd->name != NULL);
+
+    if (cmd->options) {
+        struct optparse_opt *opt = cmd->options;
+        while (opt->short_name != (char) END_OF_OPTIONS) {
+            // At least one of those is required.
+            assert(opt->short_name || opt->long_name);
+
+            // Splitting and then calling like a non-array type-converted value
+            // existed would produce random values.
+            assert((opt->arg_delim && opt->function_type != FUNCTION_TYPE_TARG)
+                || !opt->arg_delim);
+
+            // If the option-argument is not split, no array exists and array
+            // functions must not be called.
+            assert((!opt->arg_delim && opt->function_type
+                != FUNCTION_TYPE_TARG_ARRAY && opt->function_type
+                != FUNCTION_TYPE_OARG_ARRAY) || opt->arg_delim);
+
+            opt++;
+        }
+    }
+
+    if (cmd->subcommands) {
+        struct optparse_cmd *subcmd = cmd->subcommands;
+        while (subcmd->name != END_OF_SUBCOMMANDS) {
+            check_cmd(subcmd);
+        }
+        subcmd++;
+    }
+}
+#endif
+
 /// Public functions -----------------------------------------------------------
 
 // Parses command line options as described in the provided command structure.
@@ -1363,6 +1398,9 @@ void optparse_parse(struct optparse_cmd *cmd, int *argc, char ***argv)
 #if OPTPARSE_SUBCOMMANDS
     // Make sure the subcommand tree is not deeper than allowed.
     assert(subcmd_depth(cmd, 0) < MAX_SUBCMD_DEPTH);
+#endif
+#ifndef NDEBUG
+    check_cmd(cmd);
 #endif
 
     help_stream = stdout;
@@ -1445,3 +1483,225 @@ void optparse_print_help_subcmd(int argc, char **argv)
     }
 }
 #endif
+
+// Converts a string to a different data type.
+// Return value:  0: success
+//                1: string is not convertible
+//               -1: converted data is out of range
+// Example:
+//     int i;
+//     int retval = strtox("512", &i, DATA_TYPE_INT);
+int strtox(char *str, void *x, enum optparse_data_type data_type)
+{
+    if (str == NULL) {
+        return 1;
+    }
+
+    char *endptr = NULL;
+    errno = 0;
+
+    switch (data_type) {
+        case DATA_TYPE_STR:
+            *(char **) x = str;
+            break;
+        case DATA_TYPE_CHAR:
+            if (strlen(str) > 1) {
+                errno = ERANGE;
+            }
+            *(char *) x = str[0];
+            break;
+        case DATA_TYPE_SCHAR:
+            if (strlen(str) > 1) {
+                errno = ERANGE;
+            }
+            *(signed char *) x = str[0];
+            break;
+        case DATA_TYPE_UCHAR:
+            if (strlen(str) > 1) {
+                errno = ERANGE;
+            }
+            *(unsigned char *) x = str[0];
+            break;
+        case DATA_TYPE_SHRT:
+            {
+                long result = strtol(str, &endptr, 0);
+                if (result < SHRT_MIN || result > SHRT_MAX) {
+                    errno = ERANGE;
+                }
+                *(short *) x = (short) result;
+            }
+            break;
+        case DATA_TYPE_USHRT:
+            {
+                unsigned long result = strtoul(str, &endptr, 0);
+                if (result > USHRT_MAX) {
+                    errno = ERANGE;
+                }
+                *(unsigned short *) x = (unsigned short) result;
+            }
+            break;
+        case DATA_TYPE_INT:
+            {
+                long result = strtol(str, &endptr, 0);
+                if (result < INT_MIN || result > INT_MAX) {
+                    errno = ERANGE;
+                }
+                *(int *) x = (int) result;
+            }
+            break;
+        case DATA_TYPE_UINT:
+            {
+                unsigned long result = strtoul(str, &endptr, 0);
+                if (result > UINT_MAX) {
+                    errno = ERANGE;
+                }
+                *(unsigned int *) x = (unsigned int) result;
+            }
+            break;
+        case DATA_TYPE_LONG:
+            *(long *) x = strtol(str, &endptr, 0);
+            break;
+        case DATA_TYPE_ULONG:
+            *(unsigned long *) x = strtoul(str, &endptr, 0);
+            break;
+        case DATA_TYPE_LLONG:
+            *(long long *) x = strtoll(str, &endptr, 0);
+            break;
+        case DATA_TYPE_ULLONG:
+            *(unsigned long long *) x = strtoull(str, &endptr, 0);
+            break;
+#if OPTPARSE_FLOATING_POINT_SUPPORT
+        case DATA_TYPE_FLT:
+            {
+                double result = strtod(str, &endptr);
+                if (result < FLT_MIN || result > FLT_MAX) {
+                    errno = ERANGE;
+                }
+                *(float *) x = (float) result;
+            }
+            break;
+        case DATA_TYPE_DBL:
+            *(double *) x = strtod(str, &endptr);
+            break;
+        case DATA_TYPE_LDBL:
+            *(long double *) x = strtold(str, &endptr);
+            break;
+#endif
+        case DATA_TYPE_BOOL:
+            {
+                int len = strlen(str);
+                char temp[len + 1];
+                strcpy(temp, str);
+                for (int i = 0; i < len; i++) {
+                    temp[i] = tolower(temp[i]);
+                }
+                if (strcmp(temp, "true") == 0) {
+                    *(bool *) x = true;
+                } else if (strcmp(temp, "false") == 0) {
+                    *(bool *) x = false;
+                } else if (strcmp(temp, "enabled") == 0) {
+                    *(bool *) x = true;
+                } else if (strcmp(temp, "disabled") == 0) {
+                    *(bool *) x = false;
+                } else if (strcmp(temp, "yes") == 0) {
+                    *(bool *) x = true;
+                } else if (strcmp(temp, "no") == 0) {
+                    *(bool *) x = false;
+                } else if (strcmp(temp, "on") == 0) {
+                    *(bool *) x = true;
+                } else if (strcmp(temp, "off") == 0) {
+                    *(bool *) x = false;
+                } else {
+                    int result = strtox(str, x, DATA_TYPE_INT);
+                    if (result == 1 || result == 0) {
+                        *(bool *) x = result;
+                    } else {
+                        endptr = str;
+                    }
+                }
+            }
+            break;
+#if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
+        case DATA_TYPE_INT8:
+            {
+                long result = strtol(str, &endptr, 0);
+                if (result < INT8_MIN || result > INT8_MAX) {
+                    errno = ERANGE;
+                }
+                *(int8_t *) x = (int8_t) result;
+            }
+            break;
+        case DATA_TYPE_UINT8:
+            {
+                unsigned long result = strtoul(str, &endptr, 0);
+                if (result > UINT8_MAX) {
+                    errno = ERANGE;
+                }
+                *(uint8_t *) x = (uint8_t) result;
+            }
+            break;
+        case DATA_TYPE_INT16:
+            {
+                long result = strtol(str, &endptr, 0);
+                if (result < INT16_MIN || result > INT16_MAX) {
+                    errno = ERANGE;
+                }
+                *(int16_t *) x = (int16_t) result;
+            }
+            break;
+        case DATA_TYPE_UINT16:
+            {
+                unsigned long result = strtoul(str, &endptr, 0);
+                if (result > UINT16_MAX) {
+                    errno = ERANGE;
+                }
+                *(uint16_t *) x = (uint16_t) result;
+            }
+            break;
+        case DATA_TYPE_INT32:
+            {
+                long result = strtol(str, &endptr, 0);
+                if (result < INT32_MIN || result > INT32_MAX) {
+                    errno = ERANGE;
+                }
+                *(int32_t *) x = (int32_t) result;
+            }
+            break;
+        case DATA_TYPE_UINT32:
+            {
+                unsigned long result = strtoul(str, &endptr, 0);
+                if (result > UINT32_MAX) {
+                    errno = ERANGE;
+                }
+                *(uint32_t *) x = (uint32_t) result;
+            }
+            break;
+        case DATA_TYPE_INT64:
+            {
+                long long result = strtoll(str, &endptr, 0);
+                if (result < INT64_MIN || result > INT64_MAX) {
+                    errno = ERANGE;
+                }
+                *(int64_t *) x = (int64_t) result;
+            }
+            break;
+        case DATA_TYPE_UINT64:
+            {
+                unsigned long long result = strtoull(str, &endptr, 0);
+                if (result > UINT64_MAX) {
+                    errno = ERANGE;
+                }
+                *(uint64_t *) x = (uint64_t) result;
+            }
+            break;
+#endif
+    }
+
+    if (endptr && (endptr == str || endptr[0] != '\0')) {
+        return 1;
+    } else if (errno == ERANGE) {
+        return -1;
+    } else {
+        return 0;
+    }
+}

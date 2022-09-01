@@ -134,56 +134,68 @@ enum optparse_flag_type {
 // Specifies how the function pointed to by .function is expected to be declared
 // and, internally, going to be called.
 enum optparse_function_type {
-    FUNCTION_TYPE_AUTO, // Automatically decide (default)
-                        // if .arg_name is set:
-                        //   if .arg_data_type is set: FUNCTION_TYPE_TARG
-                        //   else:                     FUNCTION_TYPE_OARG
-                        // else:                       FUNCTION_TYPE_VOID
-    FUNCTION_TYPE_TARG, // TARG means "type-converted option-argument".
-                        // definition: void f(DATA_TYPE);
-                        // call:       f(TARG);
-                        // (DATA_TYPE is set according to .arg_data_type)
-    FUNCTION_TYPE_OARG, // OARG means "original option-argument".
-                        // definition: void f(char *);
-                        // call:       f(OARG);
-    FUNCTION_TYPE_VOID, // definition: void f(void);
-                        // call:       f();
+    FUNCTION_TYPE_AUTO,       // Automatically decide (default):
+                              // .arg_name is set?
+                              //   .arg_delim is set? FUNCTION_TYPE_TARG_ARRAY
+                              //   else               FUNCTION_TYPE_TARG
+                              // else                 FUNCTION_TYPE_VOID
+    FUNCTION_TYPE_TARG,       // TARG means "type-converted option-argument".
+                              // declaration: void f(DATA_TYPE);
+                              // call:        f(TARG);
+                              // (DATA_TYPE is set according to .arg_data_type.)
+    FUNCTION_TYPE_TARG_ARRAY, // declaration: void f(size_t, DATA_TYPE *);
+                              // call:        f(TARG_ARRAY_SIZE, TARG_ARRAY);
+    FUNCTION_TYPE_OARG,       // OARG means "original option-argument".
+                              // declaration: void f(char *);
+                              // call:        f(OARG);
+    FUNCTION_TYPE_OARG_ARRAY, // declaration: void f(size_t, char **);
+                              // call:        f(OARG_ARRAY_SIZE, OARG_ARRAY);
+    FUNCTION_TYPE_VOID,       // declaration: void f(void);
+                              // call:        f();
 };
 
 struct optparse_opt {
-    char short_name;        // The short option character.
+    char short_name;          // The short option character.
 #if OPTPARSE_LONG_OPTIONS
-    char *long_name;        // The long option string, without leading "--".
-                            // At least .short_name or .long_name must be set.
+    char *long_name;          // The long option string, without leading "--".
+                              // At least .short_name or .long_name must be set.
 #endif
-    char *arg_name;         // If set, it means the option has one or more
-                            // option-arguments. The string is displayed as-is
-                            // in the help screen. If it begins with "[", the
-                            // option-argument is regarded as optional.
+    char *arg_name;           // If set, it means the option has one or more
+                              // option-arguments. The string is displayed as-is
+                              // in the help screen. If it begins with "[", the
+                              // option-argument is regarded as optional.
     enum optparse_data_type arg_data_type;
-                            // If set, the parsed option-argument will be
-                            // converted to a different data type.
-    void *arg_dest;         // The memory location the (type-converted)
-                            // option-argument is saved to.
-    int *flag;              // A pointer to an integer variable that is to be
-                            // used as specified by .flag_type.
+                              // If set, the parsed option-argument will be
+                              // converted to a different data type.
+    char *arg_delim;          // If set, the option-argument will be treated as
+                              // a list whose items are separated by any of this
+                              // string's characters.
+    void *arg_storage;        // The memory location the (type-converted)
+                              // option-argument is saved to. Its data type must
+                              // match the one defined in .arg_data_type. If
+                              // .arg_delim is set, it must be a pointer (which
+                              // will point to dynamically allocated memory).
+    size_t *arg_storage_size; // The memory location the number of items stored
+                              // in *arg_storage is saved to.
+    int *flag;                // A pointer to an integer variable that is to be
+                              // used as specified by .flag_type.
     enum optparse_flag_type flag_type;
-    void (*function)(void); // Points to a function that is called as specified
-                            // in .function_type. In the struct's initializer,
-                            // the pointer can be cast to a void function
-                            // pointer to suppress compiler warnings:
-                            // .function = (void (*)(void)) function_name;
+    void (*function)(void);   // Points to a function that is called as
+                              // specified in .function_type. In the struct's
+                              // initializer, the pointer can be cast to a void
+                              // function pointer to avoid compiler warnings:
+                              // .function = (void (*)(void)) function_name;
     enum optparse_function_type function_type;
 #if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
-    int group;              // Options that share the same group value are
-                            // treated as mutually exclusive.
+    int group;                // Options that share the same group value are
+                              // treated as mutually exclusive.
 #endif
 #if OPTPARSE_HIDDEN_OPTIONS
-    _Bool hidden;           // If true, the option won't be displayed in the
-                            // help screen.
+    _Bool hidden;             // If true, the option won't be displayed in the
+                              // help screen.
 #endif
-    char *description;      // A string that will appear as the option's
-                            // documentation in the help screen.
+    char *description;        // A string that will appear as the option's
+                              // documentation in the help screen.
 };
 
 /// Command structure ----------------------------------------------------------
@@ -256,5 +268,4 @@ char *optparse_unshift(void);
 //     int i;
 //     int retval = strtox("512", &i, DATA_TYPE_INT);
 int strtox(char *str, void *x, enum optparse_data_type data_type);
-
 #endif

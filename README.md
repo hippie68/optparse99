@@ -7,7 +7,7 @@ A C99+ option parser.
   - The order of options and operands (non-options) does not matter.
   - Supports the "end of options" delimiter (--).
   - Can set integer flags (true, false, increment, decrement).
-  - Can type-convert and store option-arguments.
+  - Can split, type-convert and store option-arguments.
   - Supports subcommands and nested subcommands.
   - Options and commands/subcommands can call functions ("callbacks") with or without arguments.
   - Mutually exclusive options.
@@ -25,7 +25,7 @@ The code is still considered work-in-progress: it may be rough around the edges 
   - [Option structure](#option-structure)
   - [Functions](#functions)
     - [Manual parsing](#manual-parsing)
-    - [Manual type-converting](#manual-type-converting)
+    - [Manual type conversion](#manual-type-conversion)
   - [Preprocessor directives](#preprocessor-directives)
 
 # Basic example
@@ -40,9 +40,12 @@ The code is still considered work-in-progress: it may be rough around the edges 
 int verbose;
 uint16_t bufsize = 4096;
 char *filename;
+int *array;
+size_t array_size;
 
 void check_bufsize(uint16_t bufsize)
 {
+    printf("bufsize: %u\n", bufsize);
     if (bufsize < 4096) {
         fprintf(stderr, "Buffer size too low: %u\n", bufsize);
         exit(EXIT_FAILURE);
@@ -56,7 +59,7 @@ int main(int argc, char *argv[])
         .about = "Supertool v1.00 - A really handy tool.",
         .description = "This is an example program that uses a basic optparse99 setup. Variables like \"FILENAME\" serve no purpose other than to demonstrate option behavior. After parsing, the program will print remaining operands and variables' final state.",
         .name = "supertool",
-        .operands = "OPERAND [OPERAND...]", // At least 1 operand is required.
+        .operands = "OPERAND [OPERAND...]",
         .options = (struct optparse_opt []) {
             // Call the built-in help screen function.
             {
@@ -77,11 +80,21 @@ int main(int argc, char *argv[])
                 .long_name = "file",
                 .description = "Set a file name.",
                 .arg_name = "FILENAME",
-                .arg_dest = &filename,
+                .arg_storage = &filename,
+            },
+            // Split and store a comma-separated integer list as an array.
+            {
+                .long_name = "input",
+                .description = "Process a list of comma-separated numbers.",
+                .arg_name = "LIST",
+                .arg_data_type = DATA_TYPE_INT,
+                .arg_delim = ",",
+                .arg_storage = &array,
+                .arg_storage_size = &array_size,
             },
             // Convert a user-provided option-argument to data type uint16_t and
             // check if the converted number is inside an allowed range.
-            // (The check could also be done, perhaps together with other
+            // (The check could also be done, i.e. together with other options'
             // checks, by employing main_cmd's .function, or after parsing.)
             {
                 .short_name = 'b',
@@ -89,7 +102,7 @@ int main(int argc, char *argv[])
                 .description = "Change the file buffer size. Allowed range: 4096-65535 (default: 4096).",
                 .arg_name = "BUFSIZE",
                 .arg_data_type = DATA_TYPE_UINT16,
-                .arg_dest = &bufsize,
+                .arg_storage = &bufsize,
                 .function = (void (*)(void)) check_bufsize,
             },
             { END_OF_OPTIONS },
@@ -117,6 +130,13 @@ int main(int argc, char *argv[])
     printf("verbose: %d\n", verbose);
     printf("filename: %s\n", filename ? filename : "NULL");
     printf("bufsize: %u\n", bufsize);
+    printf("array_size: %zu\n", array_size);
+    if (array != NULL) {
+        for (size_t i = 0; i < array_size; i++) {
+            printf("array[%zu]: %d\n", i, array[i]);
+        }
+        free(array);
+    }
 }
 ```
 
@@ -135,6 +155,7 @@ Options:
   -h, --help             Print help information and quit.
       --verbose          Increase verbosity.
   -f, --file FILENAME    Set a file name.
+      --input LIST       Process a list of comma-separated numbers.
   -b, --bufsize BUFSIZE  Change the file buffer size. Allowed range: 4096-65535
                          (default: 4096).
 ```
@@ -213,10 +234,12 @@ Structure member          | Description
 `.long_name` (required*)  | The long option string (without leading "--").
 `.arg_name`               | If specified, it means the option has one or more option-arguments. The string is displayed as-is in the help screen. If it begins with "\[", the option-argument is regarded as optional.
 `.arg_data_type`          | If set, the parsed option-argument (char *) will be converted to a different data type.
-`.arg_dest`               | The memory location the (type-converted) option-argument is saved to.
+`.arg_delim`              | If set, the option-argument will be treated as a list whose items are separated by any of this string's characters.
+`.arg_storage`            | The memory location the (type-converted) option-argument is saved to. Its data type must match the one defined in .arg_data_type. If .arg_delim is set, it must be a pointer (which will point to dynamically allocated memory).
+`.arg_storage_size`       | The memory location the number of items stored in *arg_storage is saved to.
 `.flag`                   | A pointer to an integer variable that is to be used as specified by .flag_type.
 `.flag_type`              | Specifies what to do to with the flag variable's value.
-`.function`               | Points to a function that is called as specified in .function_type. The pointer can be cast to void (*)(void) to suppress compiler warnings.
+`.function`               | Points to a function that is called as specified in .function_type. The pointer can be cast to void (*)(void) to avoid compiler warnings.
 `.function_type`          | Tells .function which argument to use.
 `.group`                  | Options that share the same group value are treated as mutually exclusive.
 `.hidden`                 | If true, the option won't be displayed in the help screen.
@@ -226,7 +249,7 @@ Structure member          | Description
 ### Allowed values for .arg_data_type
 
 Value                     | Conversion type
-------------------------- | ------------------
+------------------------- | -------------------------
 `DATA_TYPE_STR` (default) | (no conversion)
 `DATA_TYPE_CHAR`          | char
 `DATA_TYPE_SCHAR`         | signed char
@@ -265,18 +288,21 @@ Value                          | Result
 
 Value                          | Function declaration and internal call
 ------------------------------ | --------------------------------------
-`FUNCTION_TYPE_AUTO` (default) | Automatically decide (default)
-`FUNCTION_TYPE_TARG`           | TARG means "type-converted option-argument" (type as specified in .arg_data_type).<br>declaration: void f(DATA_TYPE);<br>call: f(TARG);
-`FUNCTION_TYPE_OARG`           | OARG means "original option-argument".<br>declaration: void f(char *);<br>call: f(OARG);
-`FUNCTION_TYPE_VOID`           | declaration: void f(void);<br>call: f();
+`FUNCTION_TYPE_AUTO` (default) | Automatically decide.
+`FUNCTION_TYPE_TARG`           | TARG means "type-converted option-argument".<br>declaration: `void f(DATA_TYPE);`<br>call: `f(TARG);`<br>(DATA_TYPE is set according to `.arg_data_type`.)
+`FUNCTION_TYPE_TARG_ARRAY`     | declaration: `void f(size_t, DATA_TYPE *);`<br>call: `f(ARRAY_SIZE, TARG_ARRAY);`
+`FUNCTION_TYPE_OARG`           | OARG means "original option-argument".<br>declaration: `void f(char *);`<br>call: `f(OARG);`
+`FUNCTION_TYPE_OARG_ARRAY`     | declaration: `void f(size_t, char **);`<br>call: `f(ARRAY_SIZE, OARG_ARRAY);`
+`FUNCTION_TYPE_VOID`           | declaration: `void f(void);`<br>call: `f();`
 
 How automatic decision works:
    - if .arg_name is set:
-     - if .arg_data_type is set: FUNCTION_TYPE_TARG
-     - else:                     FUNCTION_TYPE_OARG
-   - else:                       FUNCTION_TYPE_VOID
+     - if .arg_delim is set:   FUNCTION_TYPE_TARG_ARRAY
+     - else:                   FUNCTION_TYPE_TARG
+   - else:                     FUNCTION_TYPE_VOID
 
-Functions refered to by .function must be of return type void, and their declaration must match the one specified by .function_type.
+Functions refered to by .function must be of return type void, and their declaration must match the one specified by .function_type.  
+The data passed pointers refer to is only guaranteed to exist while the function is running.
 
 ## Functions
 
@@ -370,7 +396,7 @@ void print_arg(char *arg) {
 
 Note: when implementing multiple option-arguments, the first option-argument must not be optional unless OPTPARSE_ATTACHED_OPTION_ARGUMENTS (see [Preprocessor directives](#preprocessor-directives)) is set to false.
 
-### Manual type-converting
+### Manual type conversion
 
 The function used internally for type-converting option-arguments is strtox():
 
@@ -391,8 +417,8 @@ The function's return value depends on the conversion outcome:
 Return value | Meaning
 ------------ | ------------
 0            | Success
-1            | The string is not convertible.
--1           | The converted data is out of range.
+1            | Error: the string is not convertible.
+-1           | Error: converted data is out of range.
 
 ## Preprocessor directives
 
@@ -420,4 +446,4 @@ Macro                                 | Default value | Description
 
 By disabling a feature, related code will not be compiled and structure members that are related to that feature will no longer be recognized.
 
-When building releases, please define NDEBUG to remove assert()-related code.
+Recommended: When building releases, define NDEBUG to remove assert()-related code. That code is used to identify mistakes in command and option structures and is not needed in release builds.
