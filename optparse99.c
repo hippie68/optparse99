@@ -136,7 +136,7 @@ static void bprint_option_usage(char *buffer, struct optparse_opt *opt)
 }
 
 // Returns a data type's size.
-int get_data_type_size(enum optparse_data_type data_type)
+static int get_data_type_size(enum optparse_data_type data_type)
 {
     switch (data_type) {
         case DATA_TYPE_STR:
@@ -198,7 +198,7 @@ int get_data_type_size(enum optparse_data_type data_type)
 //                      unknown. If this error happens, the array has not been
 //                      allocated yet - no need to call free().
 //                 > 0: Success; the return value represents the array's size.
-ssize_t strtoarr(char *string, void **array, char *delim,
+static ssize_t strtoarr(char *string, void **array, char *delim,
     enum optparse_data_type data_type, size_t max_array_size)
 {
     if (string == NULL || delim == NULL) {
@@ -632,8 +632,10 @@ static void check_mutual_exclusivity(struct optparse_opt *opt)
     if (opt->group > 0 && opt->group
             < MUTUALLY_EXCLUSIVE_GROUPS_MAX) {
         if (exclusive_opts[opt->group]) {
-            char buffer1[PRINT_BUFFER_SIZE] = { 0 };
-            char buffer2[PRINT_BUFFER_SIZE] = { 0 };
+            char buffer1[PRINT_BUFFER_SIZE];
+            buffer1[0] = '\0';
+            char buffer2[PRINT_BUFFER_SIZE];
+            buffer2[0] = '\0';
             bprint_option_name(buffer1, exclusive_opts[opt->group]);
             bprint_option_name(buffer2, opt);
             optparse_error("Options %s and %s are mutually exclusive.\n",
@@ -989,7 +991,8 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd)
     fprintf(stream, "USAGE:");
 #endif
 
-    char buffer[PRINT_BUFFER_SIZE] = { 0 };
+    char buffer[PRINT_BUFFER_SIZE];
+    buffer[0] = '\0';
 
     // If a custom usage string is provided, print it and return.
     if (cmd->usage) {
@@ -1223,7 +1226,8 @@ static void print_subcommands(FILE *stream, struct optparse_cmd subcommands[])
     // Print list of subcommands.
     subcmd = subcommands;
     while (subcmd->name != END_OF_SUBCOMMANDS) {
-        char buffer[PRINT_BUFFER_SIZE] = { 0 };
+        char buffer[PRINT_BUFFER_SIZE];
+        buffer[0] = '\0';
         int n = bprintf(buffer, "%*c%s%s%s%*c",
             OPTPARSE_HELP_INDENTATION_WIDTH, ' ',
             subcmd->name,
