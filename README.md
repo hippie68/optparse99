@@ -216,7 +216,9 @@ struct optparse_opt {
     char *long_name;
     char *arg_name;
     enum optparse_data_type arg_data_type;
-    void *arg_dest;
+    char *arg_delim;
+    void *arg_storage;
+    size_t *arg_storage_size;
     int *flag;
     enum optparse_flag_type flag_type;
     void (*function)(void);
