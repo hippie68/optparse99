@@ -241,7 +241,7 @@ Structure member          | Description
 `.flag`                   | A pointer to an integer variable that is to be used as specified by .flag_type.
 `.flag_type`              | Specifies what to do to with the flag variable's value.
 `.function`               | Points to a function that is called as specified in .function_type. The pointer can be cast to void (*)(void) to avoid compiler warnings.
-`.function_type`          | Tells .function which argument to use.
+`.function_type`          | Specifies how the function pointed to by .function is expected to be declared and, internally, going to be called.
 `.group`                  | Options that share the same group value are treated as mutually exclusive.
 `.hidden`                 | If true, the option won't be displayed in the help screen.
 `.description`            | The option's description, whether short or in-depth.
