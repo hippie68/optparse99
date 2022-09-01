@@ -45,7 +45,6 @@ size_t array_size;
 
 void check_bufsize(uint16_t bufsize)
 {
-    printf("bufsize: %u\n", bufsize);
     if (bufsize < 4096) {
         fprintf(stderr, "Buffer size too low: %u\n", bufsize);
         exit(EXIT_FAILURE);
