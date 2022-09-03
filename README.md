@@ -432,6 +432,7 @@ Macro                                 | Default value | Description
 `OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS` | 1 (boolean)   | Enables/disables mutually exclusive options.
 `OPTPARSE_HIDDEN_OPTIONS`             | 1 (boolean)   | Enables/disables hidden options.
 `OPTPARSE_ATTACHED_OPTION_ARGUMENTS`  | 1 (boolean)   | Enables/disables attached option-arguments (-oarg, --option=arg). Note: if disabled, optional option-arguments can only be detected during manual parsing.
+`OPTPARSE_LIST_SUPPORT`               | 1 (boolean)   | Enables/disables support for option-arguments in list form.
 `OPTPARSE_FLOATING_POINT_SUPPORT`     | 1 (boolean)   | Enables/disables floating point support.
 `OPTPARSE_C99_INTEGER_TYPES_SUPPORT`  | 1 (boolean)   | Enables/disables C99 integer types support.
 `OPTPARSE_HELP_INDENTATION_WIDTH`     | 2             | The help screen's indentation width, in characters.

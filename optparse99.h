@@ -40,6 +40,7 @@ SOFTWARE.
 #define OPTPARSE_ATTACHED_OPTION_ARGUMENTS true
 #define OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS true
 #define OPTPARSE_HIDDEN_OPTIONS true
+#define OPTPARSE_LIST_SUPPORT true
 #define OPTPARSE_FLOATING_POINT_SUPPORT true
 #define OPTPARSE_C99_INTEGER_TYPES_SUPPORT true
 
@@ -143,13 +144,15 @@ enum optparse_function_type {
                               // declaration: void f(DATA_TYPE);
                               // call:        f(TARG);
                               // (DATA_TYPE is set according to .arg_data_type.)
-    FUNCTION_TYPE_TARG_ARRAY, // declaration: void f(size_t, DATA_TYPE *);
-                              // call:        f(TARG_ARRAY_SIZE, TARG_ARRAY);
     FUNCTION_TYPE_OARG,       // OARG means "original option-argument".
                               // declaration: void f(char *);
                               // call:        f(OARG);
+#if OPTPARSE_LIST_SUPPORT
+    FUNCTION_TYPE_TARG_ARRAY, // declaration: void f(size_t, DATA_TYPE *);
+                              // call:        f(TARG_ARRAY_SIZE, TARG_ARRAY);
     FUNCTION_TYPE_OARG_ARRAY, // declaration: void f(size_t, char **);
                               // call:        f(OARG_ARRAY_SIZE, OARG_ARRAY);
+#endif
     FUNCTION_TYPE_VOID,       // declaration: void f(void);
                               // call:        f();
 };
@@ -167,16 +170,18 @@ struct optparse_opt {
     enum optparse_data_type arg_data_type;
                               // If set, the parsed option-argument will be
                               // converted to a different data type.
-    char *arg_delim;          // If set, the option-argument will be treated as
-                              // a list whose items are separated by any of this
-                              // string's characters.
     void *arg_storage;        // The memory location the (type-converted)
                               // option-argument is saved to. Its data type must
                               // match the one defined in .arg_data_type. If
                               // .arg_delim is set, it must be a pointer (which
                               // will point to dynamically allocated memory).
-    size_t *arg_storage_size; // The memory location the number of items stored
-                              // in *arg_storage is saved to.
+#if OPTPARSE_LIST_SUPPORT
+    char *arg_delim;          // If set, the option-argument will be treated as
+                              // a list whose items are separated by any of this
+                              // string's characters.
+    size_t *arg_storage_size; // The memory location the number of list items
+                              // stored in *arg_storage is saved to.
+#endif
     int *flag;                // A pointer to an integer variable that is to be
                               // used as specified by .flag_type.
     enum optparse_flag_type flag_type;

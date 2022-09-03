@@ -183,6 +183,7 @@ static int get_data_type_size(enum optparse_data_type data_type)
     }
 }
 
+#if OPTPARSE_LIST_SUPPORT
 // Converts a non-literal string that has the form of a list into an array of
 // specified data type. The string will be altered and cannot be used anymore in
 // its original form. The array's data type must match the specified data type.
@@ -199,7 +200,7 @@ static size_t strtoarr(char *string, void **array, char *delim,
         return 0;
     }
 
-   // Get temporary array size.
+    // Get temporary array size.
     size_t array_size = 1;
     char *c = string;
     while (*c != '\0') {
@@ -250,6 +251,7 @@ static size_t strtoarr(char *string, void **array, char *delim,
 
     return array_size;
 }
+#endif
 
 // Executes an option structure's tasks.
 // arg: the option's option-argument; NULL if none provided by the user.
@@ -285,11 +287,13 @@ static void execute_option(struct optparse_opt *opt, char *arg)
 #endif
     } conv_arg;              // Used to temporarily hold a single type-converted
                              // option-argument.
+#if OPTPARSE_LIST_SUPPORT
     void *list_array = NULL; // Used to temporarily or permanently store a
                              // type-converted list.
     size_t list_size = 0;    // The converted list's size.
     char *oarg = arg;        // Optionally used to back up the original
                              // option-argument.
+#endif
 
     // Set option's flag.
     if (opt->flag != NULL) {
@@ -311,6 +315,7 @@ static void execute_option(struct optparse_opt *opt, char *arg)
 
     // Type-convert the option-argument.
     if (arg) {
+#if OPTPARSE_LIST_SUPPORT
         if (opt->arg_delim) { // Option-argument is a list.
             // Back up the original option-argument, if necessary.
             if (opt->function && opt->function_type == FUNCTION_TYPE_OARG) {
@@ -323,7 +328,9 @@ static void execute_option(struct optparse_opt *opt, char *arg)
 
             list_size = strtoarr(arg, &list_array, opt->arg_delim,
                 opt->arg_data_type);
-        } else if (opt->arg_data_type) { // Option-argument is a single value.
+        } else
+#endif
+        if (opt->arg_data_type) { // Option-argument is a single value.
             int ret;
             ret = strtox(arg, &conv_arg, opt->arg_data_type);
             if (ret == 1) {
@@ -335,40 +342,47 @@ static void execute_option(struct optparse_opt *opt, char *arg)
 
         // Store the (type-converted) option-argument...
         if (opt->arg_storage) {
+#if OPTPARSE_LIST_SUPPORT
             if (opt->arg_delim) {
                 *(void **) opt->arg_storage = list_array;
+            } else
+#endif
+            if (opt->arg_data_type == DATA_TYPE_STR) {
+                *(char **) opt->arg_storage = arg;
             } else {
-                if (opt->arg_data_type == DATA_TYPE_STR) {
-                    *(char **) opt->arg_storage = arg;
-                } else {
-                    size_t n = get_data_type_size(opt->arg_data_type);
-                    memcpy(opt->arg_storage, &conv_arg, n);
-                }
-                list_size = 1;
+                size_t n = get_data_type_size(opt->arg_data_type);
+                memcpy(opt->arg_storage, &conv_arg, n);
             }
         }
     }
 
+#if OPTPARSE_LIST_SUPPORT
     // Store the storage size.
     if (opt->arg_storage_size) {
         *opt->arg_storage_size = list_size;
     }
+#endif
 
     // Call option's function.
     if (opt->function) {
         switch (opt->function_type) {
             case FUNCTION_TYPE_AUTO:
                 if (opt->arg_name) {
+#if OPTPARSE_LIST_SUPPORT
                     if (opt->arg_delim) {
                         goto type_targ_array;
-                    } else {
-                        goto type_targ;
-                    }
+                    } else
+#endif
+                    goto type_targ;
                 } else {
                     goto type_void;
                 }
             case FUNCTION_TYPE_OARG:
+#if OPTPARSE_LIST_SUPPORT
                 ((void (*)(char *)) opt->function)(oarg);
+#else
+                ((void (*)(char *)) opt->function)(arg);
+#endif
                 break;
             case FUNCTION_TYPE_TARG:
                 type_targ:
@@ -458,13 +472,16 @@ static void execute_option(struct optparse_opt *opt, char *arg)
 #endif
                 }
                 break;
+#if OPTPARSE_LIST_SUPPORT
             case FUNCTION_TYPE_OARG_ARRAY:
                 {
                     char **array = NULL;
                     size_t size = strtoarr(oarg, (void *) &array,
                         opt->arg_delim, DATA_TYPE_STR);
                     ((void (*)(size_t, char **)) opt->function)(size, array);
-                    free(array);
+                    if (array) {
+                        free(array);
+                    }
                 }
                 break;
             case FUNCTION_TYPE_TARG_ARRAY:
@@ -572,6 +589,7 @@ static void execute_option(struct optparse_opt *opt, char *arg)
 #endif
                 }
                 break;
+#endif
             case FUNCTION_TYPE_VOID:
                 type_void:
                 ((void (*)(void)) opt->function)();
@@ -579,6 +597,7 @@ static void execute_option(struct optparse_opt *opt, char *arg)
         }
     }
 
+#if OPTPARSE_LIST_SUPPORT
     // List-related clean-up.
     if (opt->arg_delim && !opt->arg_storage) {
         free(list_array);
@@ -586,6 +605,7 @@ static void execute_option(struct optparse_opt *opt, char *arg)
     if (oarg != arg) {
         free(oarg);
     }
+#endif
 }
 
 #if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
@@ -1351,6 +1371,7 @@ static void check_cmd(struct optparse_cmd *cmd)
             // At least one of those is required.
             assert(opt->short_name || opt->long_name);
 
+#if OPTPARSE_LIST_SUPPORT
             // Splitting and then calling like a non-array type-converted value
             // existed would produce random values.
             assert((opt->arg_delim && opt->function_type != FUNCTION_TYPE_TARG)
@@ -1361,11 +1382,12 @@ static void check_cmd(struct optparse_cmd *cmd)
             assert((!opt->arg_delim && opt->function_type
                 != FUNCTION_TYPE_TARG_ARRAY && opt->function_type
                 != FUNCTION_TYPE_OARG_ARRAY) || opt->arg_delim);
-
+#endif
             opt++;
         }
     }
 
+#if OPTPARSE_SUBCOMMANDS
     if (cmd->subcommands) {
         struct optparse_cmd *subcmd = cmd->subcommands;
         while (subcmd->name != END_OF_SUBCOMMANDS) {
@@ -1373,6 +1395,7 @@ static void check_cmd(struct optparse_cmd *cmd)
         }
         subcmd++;
     }
+#endif
 }
 #endif
 
