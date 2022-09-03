@@ -186,26 +186,20 @@ static int get_data_type_size(enum optparse_data_type data_type)
 // Converts a non-literal string that has the form of a list into an array of
 // specified data type. The string will be altered and cannot be used anymore in
 // its original form. The array's data type must match the specified data type.
-// To suppress compiler warnings, the array pointer can be explicitly cast to
-// *void: "strtoarr(..., (void *) &array, ...);".
-// max_array_size:   0: Memory will be allocated for the array automatically.
-//                      If the array is no longer needed, free() must be called.
-//                 > 0: Memory is assumed to be already allocated. Up to
-//                      max_array_size array items will be populated.
-// Return value:    -1: Error; the list represented by the string is larger
-//                      than max_array_size. Not all list items could be stored.
-//                   0: Error; string or delim is NULL, or data_type is
-//                      unknown. If this error happens, the array has not been
-//                      allocated yet - no need to call free().
-//                 > 0: Success; the return value represents the array's size.
-static ssize_t strtoarr(char *string, void **array, char *delim,
-    enum optparse_data_type data_type, size_t max_array_size)
+// If the list contains items, the array's memory will be dynamically
+// allocated - free() should be called if the memory is no longer needed.
+// To avoid compiler warnings, the array pointer can be explicitly cast to
+// void *: "strtoarr(..., (void *) &array, ...);".
+// Return value: the number of list items stored in the array.
+static size_t strtoarr(char *string, void **array, char *delim,
+    enum optparse_data_type data_type)
 {
     if (string == NULL || delim == NULL) {
+        *array = NULL;
         return 0;
     }
 
-    // Get temporary array size.
+   // Get temporary array size.
     size_t array_size = 1;
     char *c = string;
     while (*c != '\0') {
@@ -221,11 +215,9 @@ static ssize_t strtoarr(char *string, void **array, char *delim,
     int data_type_size = get_data_type_size(data_type);
 
     // Allocate temporary array size.
-    if (max_array_size == 0) {
-        *array = malloc(array_size * data_type_size);
-        if (*array == NULL) {
-            optparse_error("Out of memory.\n");
-        }
+    *array = malloc(array_size * data_type_size);
+    if (*array == NULL) {
+        optparse_error("Out of memory.\n");
     }
 
     // Convert list items to specified data type and store them in the array.
@@ -235,10 +227,7 @@ static ssize_t strtoarr(char *string, void **array, char *delim,
         int ret = strtox(list_item, ((char *) *array) + array_size
             * data_type_size, data_type);
         if (ret) {
-            if (max_array_size == 0) {
-                free(*array);
-            }
-
+            free(*array);
             if (ret == 1) {
                 optparse_error("List item not valid: \"%s\"\n", list_item);
             } else if (ret == -1) {
@@ -247,20 +236,16 @@ static ssize_t strtoarr(char *string, void **array, char *delim,
         }
 
         array_size++;
-        if (array_size == max_array_size) {
-            return -1;
-        }
-
         list_item = strtok(NULL, delim);
     }
 
     // Allocate final array size.
-    if (max_array_size == 0) {
-        *array = realloc(*array, array_size * data_type_size);
-        if (*array == NULL) {
-            free(*array);
-            optparse_error("Out of memory.\n");
-        }
+    void *ret = realloc(*array, array_size * data_type_size);
+    if (ret == NULL && array_size != 0) {
+        free(*array);
+        optparse_error("Out of memory.\n");
+    } else {
+        *array = ret;
     }
 
     return array_size;
@@ -336,9 +321,8 @@ static void execute_option(struct optparse_opt *opt, char *arg)
                 strcpy(oarg, arg);
             }
 
-            ssize_t result = strtoarr(arg, &list_array, opt->arg_delim,
-                opt->arg_data_type, 0);
-            list_size = result; // Will be > 0 due to arg, .arg_delim != NULL.
+            list_size = strtoarr(arg, &list_array, opt->arg_delim,
+                opt->arg_data_type);
         } else if (opt->arg_data_type) { // Option-argument is a single value.
             int ret;
             ret = strtox(arg, &conv_arg, opt->arg_data_type);
@@ -477,12 +461,10 @@ static void execute_option(struct optparse_opt *opt, char *arg)
             case FUNCTION_TYPE_OARG_ARRAY:
                 {
                     char **array = NULL;
-                    ssize_t size = strtoarr(oarg, (void *) &array,
-                        opt->arg_delim, DATA_TYPE_STR, 0);
+                    size_t size = strtoarr(oarg, (void *) &array,
+                        opt->arg_delim, DATA_TYPE_STR);
                     ((void (*)(size_t, char **)) opt->function)(size, array);
-                    if (array) {
-                        free(array);
-                    }
+                    free(array);
                 }
                 break;
             case FUNCTION_TYPE_TARG_ARRAY:
@@ -598,7 +580,7 @@ static void execute_option(struct optparse_opt *opt, char *arg)
     }
 
     // List-related clean-up.
-    if (list_array != NULL && opt->arg_storage == NULL) {
+    if (opt->arg_delim && !opt->arg_storage) {
         free(list_array);
     }
     if (oarg != arg) {
