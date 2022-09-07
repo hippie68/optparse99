@@ -46,19 +46,11 @@ SOFTWARE.
 #include <string.h>
 
 // These can be arbitrarily changed.
-#define MAX_SUBCMD_DEPTH 4 // Including the top level command.
 #define MUTUALLY_EXCLUSIVE_GROUPS_MAX 8
 #define PRINT_BUFFER_SIZE 8192
 
-static struct optparse_cmd *optparse_main_cmd; // The command tree's root.
-static char **args;    // Contains the current state of argv while parsing.
-static int args_index; // Keeps track of the currently parsed argument's index.
-#if OPTPARSE_SUBCOMMANDS
-static struct optparse_cmd *active_cmd; // Keeps track of the currently running
-                                        // command.
-#endif
-static FILE *help_stream; // The stream help information is printed to.
-
+// Create default settings unless they are overridden via optparse.h or
+// compiler options.
 #ifndef OPTPARSE_HELP_INDENTATION_WIDTH
 #define OPTPARSE_HELP_INDENTATION_WIDTH 2
 #endif
@@ -89,6 +81,18 @@ static FILE *help_stream; // The stream help information is printed to.
 #ifndef OPTPARSE_PRINT_HELP_ON_ERROR
 #define OPTPARSE_PRINT_HELP_ON_ERROR true
 #endif
+
+// Global variables
+static struct optparse_cmd *optparse_main_cmd; // The command tree's root.
+static char **args; // Contains the current state of argv while parsing.
+static int args_index; // Keeps track of the currently parsed argument's index.
+#if OPTPARSE_SUBCOMMANDS
+static struct optparse_cmd *active_cmd; // Keeps track of the currently running
+                                        // command.
+static int subcmd_depth; // The command tree's maximum depth (automatically
+                         // calculated).
+#endif
+static FILE *help_stream; // The stream help information is printed to.
 
 /// Private functions ----------------------------------------------------------
 
@@ -358,7 +362,7 @@ static void execute_option(struct optparse_opt *opt, char *arg)
 
 #if OPTPARSE_LIST_SUPPORT
     // Store the storage size.
-    if (opt->arg_storage_size) {
+    if (opt->arg_delim && opt->arg_storage_size) {
         *opt->arg_storage_size = list_size;
     }
 #endif
@@ -906,17 +910,23 @@ static void blockprint(FILE *stream, char *str, int first_line_indent,
 
 #if OPTPARSE_SUBCOMMANDS
 // Makes a command's parent command known to all of the command's subcommands.
-void initialize_subcommand_parents(struct optparse_cmd *cmd)
+// Returns the maximum depth of nested commands.
+static int initialize_subcommand_parents(struct optparse_cmd *cmd, int depth)
 {
     if (cmd->subcommands) {
+        int max_depth = 0;
         struct optparse_cmd *subcmd = cmd->subcommands;
         while (subcmd->name != END_OF_SUBCOMMANDS) {
             subcmd->_parent = cmd;
-            if (subcmd->subcommands) {
-                initialize_subcommand_parents(subcmd);
+            int ret = initialize_subcommand_parents(subcmd, depth + 1);
+            if (ret > max_depth) {
+                max_depth = ret;
             }
             subcmd++;
         }
+        return max_depth;
+    } else {
+        return depth;
     }
 }
 #endif
@@ -925,9 +935,10 @@ void initialize_subcommand_parents(struct optparse_cmd *cmd)
 // Fills an array with the names of a command's parents, including the root
 // command, and the command itself, in the order in which they appear in the
 // command tree.
-void build_cmd_array(struct optparse_cmd *cmd, char *array[MAX_SUBCMD_DEPTH])
+static void build_cmd_array(struct optparse_cmd *cmd,
+    char *array[subcmd_depth + 1])
 {
-    char *temp_array[MAX_SUBCMD_DEPTH];
+    char *temp_array[subcmd_depth + 1];
 
     int i = 0;
     do {
@@ -981,7 +992,8 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd)
 #if OPTPARSE_SUBCOMMANDS
     static int parents_initialized;
     if (parents_initialized == 0) {
-        initialize_subcommand_parents(optparse_main_cmd);
+        subcmd_depth = initialize_subcommand_parents(optparse_main_cmd, 1);
+        parents_initialized = 1;
     }
 #endif
 
@@ -1004,10 +1016,12 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd)
 
     // Print command name(s).
 #if OPTPARSE_SUBCOMMANDS
-    char *cmd_array[MAX_SUBCMD_DEPTH];
-    build_cmd_array(cmd, cmd_array);
-    for (int i = 0; cmd_array[i]; i++) {
-        bprintf(buffer, " %s", cmd_array[i]);
+    {
+        char *cmd_array[subcmd_depth + 1];
+        build_cmd_array(cmd, cmd_array);
+        for (int i = 0; cmd_array[i]; i++) {
+            bprintf(buffer, " %s", cmd_array[i]);
+        }
     }
 #else
     bprintf(buffer, " %s", optparse_main_cmd->name);
@@ -1335,29 +1349,6 @@ static struct optparse_cmd *read_cmd_chain(struct optparse_cmd *cmd,
 }
 #endif
 
-#if OPTPARSE_SUBCOMMANDS
-#ifndef NDEBUG
-// Returns a command tree's subcommand depth.
-static int subcmd_depth(struct optparse_cmd *cmd, int depth)
-{
-    if (cmd->subcommands) {
-        int max_depth = 0;
-        cmd = cmd->subcommands;
-        while (cmd->name != END_OF_SUBCOMMANDS) {
-            int next_depth = subcmd_depth(cmd, depth + 1);
-            if (next_depth > max_depth) {
-                max_depth = next_depth;
-            }
-            cmd++;
-        }
-        return max_depth;
-    } else {
-        return depth;
-    }
-}
-#endif
-#endif
-
 #ifndef NDEBUG
 // Recursively checks a command's option structure for impossible/faulty setups.
 static void check_cmd(struct optparse_cmd *cmd)
@@ -1372,6 +1363,10 @@ static void check_cmd(struct optparse_cmd *cmd)
             assert(opt->short_name || opt->long_name);
 
 #if OPTPARSE_LIST_SUPPORT
+            // .arg_storage_size requires .arg_delim and .arg_storage.
+            assert((opt->arg_storage_size && opt->arg_delim && opt->arg_storage)
+                || !opt->arg_storage_size);
+
             // Splitting and then calling like a non-array type-converted value
             // existed would produce random values.
             assert((opt->arg_delim && opt->function_type != FUNCTION_TYPE_TARG)
@@ -1383,6 +1378,12 @@ static void check_cmd(struct optparse_cmd *cmd)
                 != FUNCTION_TYPE_TARG_ARRAY && opt->function_type
                 != FUNCTION_TYPE_OARG_ARRAY) || opt->arg_delim);
 #endif
+
+            // Group values must not be larger than
+            // MUTUALLY_EXCLUSIVE_GROUPS_MAX.
+            assert((opt->group && opt->group < MUTUALLY_EXCLUSIVE_GROUPS_MAX)
+                || !opt->group);
+
             opt++;
         }
     }
@@ -1392,8 +1393,8 @@ static void check_cmd(struct optparse_cmd *cmd)
         struct optparse_cmd *subcmd = cmd->subcommands;
         while (subcmd->name != END_OF_SUBCOMMANDS) {
             check_cmd(subcmd);
+            subcmd++;
         }
-        subcmd++;
     }
 #endif
 }
@@ -1404,10 +1405,6 @@ static void check_cmd(struct optparse_cmd *cmd)
 // Parses command line options as described in the provided command structure.
 void optparse_parse(struct optparse_cmd *cmd, int *argc, char ***argv)
 {
-#if OPTPARSE_SUBCOMMANDS
-    // Make sure the subcommand tree is not deeper than allowed.
-    assert(subcmd_depth(cmd, 0) < MAX_SUBCMD_DEPTH);
-#endif
 #ifndef NDEBUG
     check_cmd(cmd);
 #endif
