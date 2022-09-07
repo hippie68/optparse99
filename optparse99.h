@@ -170,15 +170,18 @@ struct optparse_opt {
     enum optparse_data_type arg_data_type;
                               // If set, the parsed option-argument will be
                               // converted to a different data type.
-    void *arg_storage;        // The memory location the (type-converted)
-                              // option-argument is saved to. Its data type must
-                              // match the one defined in .arg_data_type. If
-                              // .arg_delim is set, it must be a pointer (which
-                              // will point to dynamically allocated memory).
 #if OPTPARSE_LIST_SUPPORT
     char *arg_delim;          // If set, the option-argument will be treated as
                               // a list whose items are separated by any of this
                               // string's characters.
+#endif
+    void *arg_storage;        // The memory location the (type-converted)
+                              // option-argument is saved to. Its data type must
+                              // match the one defined in .arg_data_type. If
+                              // .arg_delim is set, it must be a pointer (which
+                              // after parsing will point to dynamically
+                              // allocated memory).
+#if OPTPARSE_LIST_SUPPORT
     size_t *arg_storage_size; // The memory location the number of list items
                               // stored in *arg_storage is saved to.
 #endif

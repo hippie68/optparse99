@@ -16,7 +16,7 @@ A C99+ option parser.
   - Provides function "strtox()" for manual type-conversion.
   - Features can be toggled to only compile necessary code.
 
-The code is still considered work-in-progress: it may be rough around the edges and have bugs. If you like the ideas and want to help polish them or report bugs, please create an issue at https://github.com/hippie68/optparse99/issues.
+By now all features are implemented and supposed to work. If you like the ideas and want to help polish them further or report bugs, please create an issue at https://github.com/hippie68/optparse99/issues.
 
 # Index
 - [Basic example](#basic-example)
@@ -204,7 +204,7 @@ Structure member   | Description
 `.usage`           | Can be specified to override automatic usage generation, e.g. if operands depend on options.
 `.function`        | Once the command's options have been parsed, the command will call the specified function, using the current state of argc and argv as function arguments.
 `.options`         | Points to an array containing the command's options.
-`.subcommands`     | Point to an array containing the command's subcommands.
+`.subcommands`     | Points to an array containing the command's subcommands.
 
 Members starting with an underscore ("_") are for internal use only and should be ignored.
 
@@ -236,8 +236,8 @@ Structure member          | Description
 `.arg_name`               | If specified, it means the option has one or more option-arguments. The string is displayed as-is in the help screen. If it begins with "\[", the option-argument is regarded as optional.
 `.arg_data_type`          | If set, the parsed option-argument (char *) will be converted to a different data type.
 `.arg_delim`              | If set, the option-argument will be treated as a list whose items are separated by any of this string's characters.
-`.arg_storage`            | The memory location the (type-converted) option-argument is saved to. Its data type must match the one defined in .arg_data_type. If .arg_delim is set, it must be a pointer (which will point to dynamically allocated memory).
-`.arg_storage_size`       | The memory location the number of items stored in *arg_storage is saved to.
+`.arg_storage`            | The memory location the (type-converted) option-argument is saved to. Its data type must match the one defined in .arg_data_type. If .arg_delim is set, it must be a pointer (which after parsing will point to dynamically allocated memory).
+`.arg_storage_size`       | The memory location the number of list items stored in *arg_storage is saved to.
 `.flag`                   | A pointer to an integer variable that is to be used as specified by .flag_type.
 `.flag_type`              | Specifies what to do to with the flag variable's value.
 `.function`               | Points to a function that is called as specified in .function_type. The pointer can be cast to void (*)(void) to avoid compiler warnings.
