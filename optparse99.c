@@ -89,8 +89,7 @@ static int args_index; // Keeps track of the currently parsed argument's index.
 #if OPTPARSE_SUBCOMMANDS
 static struct optparse_cmd *active_cmd; // Keeps track of the currently running
                                         // command.
-static int subcmd_depth; // The command tree's maximum depth (automatically
-                         // calculated).
+static int subcmd_depth; // The command tree's depth (automatically calculated).
 #endif
 static FILE *help_stream; // The stream help information is printed to.
 
@@ -126,16 +125,20 @@ static void bprint_option_usage(char *buffer, struct optparse_opt *opt)
 {
     if (opt->short_name) {
         bprintf(buffer, "-%c", opt->short_name);
-    } else {
+    }
+#if OPTPARSE_LONG_OPTIONS
+    else {
         bprintf(buffer, "--%s", opt->long_name);
     }
+#endif
 
     if (opt->arg_name) {
+#if OPTPARSE_LONG_OPTIONS
         if (opt->arg_name[0] == '[' && opt->long_name) {
             bprintf(buffer, "[=%s", opt->arg_name + 1);
-        } else {
-            bprintf(buffer, " %s", opt->arg_name);
-        }
+        } else
+#endif
+        bprintf(buffer, " %s", opt->arg_name);
     }
 }
 
@@ -1360,7 +1363,11 @@ static void check_cmd(struct optparse_cmd *cmd)
         struct optparse_opt *opt = cmd->options;
         while (opt->short_name != (char) END_OF_OPTIONS) {
             // At least one of those is required.
+#if OPTPARSE_LONG_OPTIONS
             assert(opt->short_name || opt->long_name);
+#else
+            assert(opt->short_name);
+#endif
 
 #if OPTPARSE_LIST_SUPPORT
             // .arg_storage_size requires .arg_delim and .arg_storage.
@@ -1379,10 +1386,12 @@ static void check_cmd(struct optparse_cmd *cmd)
                 != FUNCTION_TYPE_OARG_ARRAY) || opt->arg_delim);
 #endif
 
+#if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
             // Group values must not be larger than
             // MUTUALLY_EXCLUSIVE_GROUPS_MAX.
             assert((opt->group && opt->group < MUTUALLY_EXCLUSIVE_GROUPS_MAX)
                 || !opt->group);
+#endif
 
             opt++;
         }
