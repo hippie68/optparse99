@@ -345,7 +345,7 @@ optparse_print_help_subcmd() must be called while the remaining command line arg
     ...
     .subcommands = (struct optparse_cmd []) {
         {
-            .description = "Print a subcommand's help information and quit.",
+            .about = "Print a subcommand's help information and quit.",
             .name = "help",
             .operands = "[COMMAND...]",
             .function = optparse_print_help_subcmd,
