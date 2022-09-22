@@ -629,14 +629,18 @@ static void bprint_option_name(char *buffer, struct optparse_opt *opt)
 {
     if (opt->short_name) {
         bprintf(buffer, "-%c", opt->short_name);
+#if OPTPARSE_LONG_OPTIONS
         if (opt->long_name) {
             bprintf(buffer, ", ");
         }
+#endif
     }
 
+#if OPTPARSE_LONG_OPTIONS
     if (opt->long_name) {
         bprintf(buffer, "--%s", opt->long_name);
     }
+#endif
 }
 #endif
 
@@ -1133,11 +1137,12 @@ static void print_options(FILE *stream, struct optparse_opt options[])
         if (opt->arg_name) {
 #if OPTPARSE_ATTACHED_OPTION_ARGUMENTS
             if (opt->arg_name[0] == '[') {
+#if OPTPARSE_LONG_OPTIONS
                 if (opt->long_name) {
                     len += 1 + strlen(opt->arg_name);
-                } else {
-                    len += strlen(opt->arg_name);
-                }
+                } else
+#endif
+                len += strlen(opt->arg_name);
             } else
 #endif
             len += 1 + strlen(opt->arg_name);
@@ -1191,11 +1196,12 @@ static void print_options(FILE *stream, struct optparse_opt options[])
         if (opt->arg_name) {
 #if OPTPARSE_ATTACHED_OPTION_ARGUMENTS
             if (opt->arg_name[0] == '[') {
+#if OPTPARSE_LONG_OPTIONS
                 if (opt->long_name) {
                     len += fprintf(stream, "[=%s", opt->arg_name + 1);
-                } else {
-                    len += fprintf(stream, "%s", opt->arg_name);
-                }
+                } else
+#endif
+                len += fprintf(stream, "%s", opt->arg_name);
             } else
 #endif
             len += fprintf(stream, " %s", opt->arg_name);
