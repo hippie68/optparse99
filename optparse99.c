@@ -120,6 +120,7 @@ static int bprintf(char *buffer, const char *fmt, ...)
     return n;
 }
 
+#if OPTPARSE_HELP_USAGE_STYLE == 1 || OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
 // Prints an option's usage information ("-a ARG") to a buffer.
 static void bprint_option_usage(char *buffer, struct optparse_opt *opt)
 {
@@ -133,14 +134,21 @@ static void bprint_option_usage(char *buffer, struct optparse_opt *opt)
 #endif
 
     if (opt->arg_name) {
+        if (opt->arg_name[0] == '[') {
+            if (opt->short_name) {
+                bprintf(buffer, "%s", opt->arg_name);
+            }
 #if OPTPARSE_LONG_OPTIONS
-        if (opt->arg_name[0] == '[' && opt->long_name) {
-            bprintf(buffer, "[=%s", opt->arg_name + 1);
-        } else
+            else if (opt->long_name) {
+                bprintf(buffer, "[=%s", opt->arg_name + 1);
+            }
 #endif
-        bprintf(buffer, " %s", opt->arg_name);
+        } else {
+            bprintf(buffer, " %s", opt->arg_name);
+        }
     }
 }
+#endif
 
 // Returns a data type's size.
 static int get_data_type_size(enum optparse_data_type data_type)
@@ -1050,16 +1058,13 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd)
 #if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
             if (opt->group) {
                 bprint_exclusive_option_group(buffer, opt, printed_groups);
-            } else {
+            } else
+#endif
+            {
                 bprintf(buffer, " [");
                 bprint_option_usage(buffer, opt);
                 bprintf(buffer, "]");
             }
-#else
-            bprintf(buffer, " [");
-            bprint_option_usage(buffer, opt);
-            bprintf(buffer, "]");
-#endif
             opt++;
         }
 #else
@@ -1369,6 +1374,12 @@ static void check_cmd(struct optparse_cmd *cmd)
             assert(opt->short_name);
 #endif
 
+            // Make sure option-argument is named properly.
+            assert((opt->arg_name && opt->arg_name[0] == '['
+                && opt->arg_name[strlen(opt->arg_name) - 1] == ']')
+                || (opt->arg_name && opt->arg_name[0] != '[')
+                || !opt->arg_name);
+
 #if OPTPARSE_LIST_SUPPORT
             // .arg_storage_size requires .arg_delim and .arg_storage.
             assert((opt->arg_storage_size && opt->arg_delim && opt->arg_storage)
@@ -1489,6 +1500,7 @@ void optparse_fprint_usage(FILE *stream)
 // command structure's .function member.
 void optparse_print_help_subcmd(int argc, char **argv)
 {
+    (void) argc; // To avoid compilers complaining about "unused parameter".
     argv++; // To ignore the program's file name
     if (*argv) {
         struct optparse_cmd *subcmd = read_cmd_chain(optparse_main_cmd, argv);

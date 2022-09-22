@@ -84,7 +84,7 @@ SOFTWARE.
 //#define OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS true
 
 // Prints the currently active command's help screen if there's a parsing error.
-// Defalt value: true
+// Default value: true
 //#define OPTPARSE_PRINT_HELP_ON_ERROR true
 
 /// Option structure -----------------------------------------------------------
