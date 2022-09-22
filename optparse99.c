@@ -880,6 +880,7 @@ static void blockprint(FILE *stream, char *str, int first_line_indent,
             // Print early when encountering a newline character.
             if (str[n] == '\n') {
                 fprintf(stream, "%.*s", ++n, str);
+                str += n;
                 goto next;
             }
             // Print and finish if string is shorter than width.
@@ -888,26 +889,33 @@ static void blockprint(FILE *stream, char *str, int first_line_indent,
                 return;
             }
             n++;
-        }
+        } // If this loop survives, word-wrapping will happen.
         n--;
 
-        // Make sure not to truncate the last word.
+        // First make sure not to truncate the last word...
         while (n > 0 && str[n] != ' ') {
             n--;
         }
+
+        // ...then make sure not to print any trailing spaces.
+        while (n > 0 && str[n - 1] == ' ') {
+            n--;
+        }
+
+        // Truncate if the string is too long.
         if (n == 0) {
             n = width;
         }
 
         fprintf(stream, "%.*s\n", n, str);
-
-        next:
         str += n;
-        // Remove leading spaces before printing the next line.
-        while (str[0] == ' ') {
+
+        // Remove word-separating leading space before printing the next line.
+        if (str[0] == ' ') {
             str++;
         }
 
+        next:
         if (first_line_printed == 0) {
             first_line_printed = 1;
             width = end - indent;
