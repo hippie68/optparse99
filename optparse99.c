@@ -120,7 +120,7 @@ static int bprintf(char *buffer, const char *fmt, ...)
     return n;
 }
 
-#if OPTPARSE_HELP_USAGE_STYLE == 1 || OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
+#if OPTPARSE_HELP_USAGE_STYLE == 1 && OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
 // Prints an option's usage information ("-a ARG") to a buffer.
 static void bprint_option_usage(char *buffer, struct optparse_opt *opt)
 {
@@ -969,7 +969,7 @@ static void build_cmd_array(struct optparse_cmd *cmd,
 }
 #endif
 
-#if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
+#if OPTPARSE_HELP_USAGE_STYLE == 1 && OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
 // Prints all of a specified group's mutually exlusive options to a buffer.
 // Assumes there are at least 2 group members.
 static void bprint_exclusive_option_group(char *buffer,
