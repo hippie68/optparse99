@@ -448,4 +448,14 @@ Macro                                 | Default value | Description
 
 By disabling a feature, related code will not be compiled and structure members that are related to that feature will no longer be recognized.
 
-Recommended: When building releases, define NDEBUG to remove assert()-related code. That code is used to identify mistakes in command and option structures and is not needed in release builds.
+Recommended:
+- When building releases, define `NDEBUG` to remove assert()-related code. That code is used to identify mistakes in command and option structures and is not needed in release builds.
+- When compiling with GCC or clang and compiler option -Wextra, warnings like `warning: missing initializer for field ‘long_name’ of ‘struct optparse_opt’ [-Wmissing-field-initializers]` may appear. To avoid them, the command tree's definition can be wrapped in these directives:
+```C
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    struct optparse_cmd main_cmd = {
+        ...
+    };
+#pragma GCC diagnostic pop
+```
