@@ -47,7 +47,7 @@ SOFTWARE.
 
 // These can be arbitrarily changed.
 #define MUTUALLY_EXCLUSIVE_GROUPS_MAX 8
-#define PRINT_BUFFER_SIZE 8192
+#define PRINT_BUFFER_SIZE 1024
 
 // Create default settings unless they are overridden via optparse.h or
 // compiler options.
@@ -120,7 +120,7 @@ static int bprintf(char *buffer, const char *fmt, ...)
     return n;
 }
 
-#if OPTPARSE_HELP_USAGE_STYLE == 1 && OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
+#if OPTPARSE_HELP_USAGE_STYLE == 1
 // Prints an option's usage information ("-a ARG") to a buffer.
 static void bprint_option_usage(char *buffer, struct optparse_opt *opt)
 {
@@ -642,9 +642,7 @@ static void bprint_option_name(char *buffer, struct optparse_opt *opt)
     }
 #endif
 }
-#endif
 
-#if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
 // Checks an option for mutual exclusivity violations and quits on error.
 static void check_mutual_exclusivity(struct optparse_opt *opt)
 {
