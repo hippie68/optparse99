@@ -22,6 +22,8 @@ option(OPT_OPTPARSE_HELP_WORD_WRAP "Enables/disables word wrap for lines longer 
 option(OPT_OPTPARSE_HELP_FLOATING_DESCRIPTIONS "Defines how a description is to be printed if an option is longer than OPTPARSE_HELP_MAX_DIVIDER_WIDTH; 0: print description on a separate line, 1: print description on the same line, after a single indentation." ON)
 option(OPT_OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS "Makes long options stay in a separate column even if there's no short option." ON)
 option(OPT_OPTPARSE_PRINT_HELP_ON_ERROR "Prints the currently active command's help screen if there's a parsing error." ON)
+set(OPT_OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX "8" CACHE STRING "The maximum amount of groups for matually exclusive options.")
+set(OPT_OPTPARSE_PRINT_BUFFER_SIZE "1024" CACHE STRING "The size of the buffer used for printing functionality of optparse99 such as printing help and usage.")
 
 option(OPTPARSE99_STATIC "Build static library." ON)
 if(OPTPARSE99_STATIC)
@@ -65,7 +67,9 @@ target_compile_definitions(optparse99
         OPTPARSE_HELP_WORD_WRAP=$<IF:$<BOOL:${OPT_OPTPARSE_HELP_WORD_WRAP}>,true,false>
         OPTPARSE_HELP_FLOATING_DESCRIPTIONS=$<IF:$<BOOL:${OPT_OPTPARSE_HELP_FLOATING_DESCRIPTIONS}>,true,false>
         OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS=$<IF:$<BOOL:${OPT_OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS}>,true,false>
-        OPTPARSE_PRINT_HELP_ON_ERROR=$<IF:$<BOOL:${OPT_OPTPARSE_PRINT_HELP_ON_ERROR}>,true,false>)
+        OPTPARSE_PRINT_HELP_ON_ERROR=$<IF:$<BOOL:${OPT_OPTPARSE_PRINT_HELP_ON_ERROR}>,true,false>
+        OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX=${OPT_OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX}
+        OPTPARSE_PRINT_BUFFER_SIZE=${OPT_OPTPARSE_PRINT_BUFFER_SIZE})
 
 install(TARGETS optparse99
     ${OPTPARSE99_LINK_TYPE}

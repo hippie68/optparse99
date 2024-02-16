@@ -46,8 +46,12 @@ SOFTWARE.
 #include <string.h>
 
 // These can be arbitrarily changed.
-#define MUTUALLY_EXCLUSIVE_GROUPS_MAX 8
-#define PRINT_BUFFER_SIZE 1024
+#ifndef OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX
+#define OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX 8
+#endif
+#ifndef OPTPARSE_PRINT_BUFFER_SIZE
+#define OPTPARSE_PRINT_BUFFER_SIZE 1024
+#endif
 
 // Create default settings unless they are overridden via optparse.h or
 // compiler options.
@@ -108,14 +112,14 @@ static void optparse_error(char *fmt, ...)
     exit(EXIT_FAILURE);
 }
 
-// Safely prints to a buffer of size PRINT_BUFFER_SIZE;
+// Safely prints to a buffer of size OPTPARSE_PRINT_BUFFER_SIZE;
 static int bprintf(char *buffer, const char *fmt, ...)
 {
     int n;
     va_list ap;
     va_start(ap, fmt);
     size_t len = strlen(buffer);
-    n = vsnprintf(buffer + len, PRINT_BUFFER_SIZE - len, fmt, ap);
+    n = vsnprintf(buffer + len, OPTPARSE_PRINT_BUFFER_SIZE - len, fmt, ap);
     va_end(ap);
     return n;
 }
@@ -646,14 +650,14 @@ static void bprint_option_name(char *buffer, struct optparse_opt *opt)
 // Checks an option for mutual exclusivity violations and quits on error.
 static void check_mutual_exclusivity(struct optparse_opt *opt)
 {
-    static struct optparse_opt *exclusive_opts[MUTUALLY_EXCLUSIVE_GROUPS_MAX];
+    static struct optparse_opt *exclusive_opts[OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX];
 
     if (opt->group > 0 && opt->group
-            < MUTUALLY_EXCLUSIVE_GROUPS_MAX) {
+            < OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX) {
         if (exclusive_opts[opt->group]) {
-            char buffer1[PRINT_BUFFER_SIZE];
+            char buffer1[OPTPARSE_PRINT_BUFFER_SIZE];
             buffer1[0] = '\0';
-            char buffer2[PRINT_BUFFER_SIZE];
+            char buffer2[OPTPARSE_PRINT_BUFFER_SIZE];
             buffer2[0] = '\0';
             bprint_option_name(buffer1, exclusive_opts[opt->group]);
             bprint_option_name(buffer2, opt);
@@ -1026,7 +1030,7 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd)
     fprintf(stream, "USAGE:");
 #endif
 
-    char buffer[PRINT_BUFFER_SIZE];
+    char buffer[OPTPARSE_PRINT_BUFFER_SIZE];
     buffer[0] = '\0';
 
     // If a custom usage string is provided, print it and return.
@@ -1052,7 +1056,7 @@ static void print_usage(FILE *stream, struct optparse_cmd *cmd)
     if (cmd->options) {
 #if OPTPARSE_HELP_USAGE_STYLE == 1
 #if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
-        int printed_groups[MUTUALLY_EXCLUSIVE_GROUPS_MAX] = { 0 };
+        int printed_groups[OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX] = { 0 };
 #endif
 
         struct optparse_opt *opt = cmd->options;
@@ -1262,7 +1266,7 @@ static void print_subcommands(FILE *stream, struct optparse_cmd subcommands[])
     // Print list of subcommands.
     subcmd = subcommands;
     while (subcmd->name != END_OF_SUBCOMMANDS) {
-        char buffer[PRINT_BUFFER_SIZE];
+        char buffer[OPTPARSE_PRINT_BUFFER_SIZE];
         buffer[0] = '\0';
         int n = bprintf(buffer, "%*c%s%s%s%*c",
             OPTPARSE_HELP_INDENTATION_WIDTH, ' ',
@@ -1411,8 +1415,8 @@ static void check_cmd(struct optparse_cmd *cmd)
 
 #if OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
             // Group values must not be larger than
-            // MUTUALLY_EXCLUSIVE_GROUPS_MAX.
-            assert((opt->group && opt->group < MUTUALLY_EXCLUSIVE_GROUPS_MAX)
+            // OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX.
+            assert((opt->group && opt->group < OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX)
                 || !opt->group);
 #endif
 

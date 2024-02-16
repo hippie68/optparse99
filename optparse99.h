@@ -35,14 +35,30 @@ SOFTWARE.
 
 /// Customizable preprocessor directives ---------------------------------------
 
+#ifndef OPTPARSE_LONG_OPTIONS
 #define OPTPARSE_LONG_OPTIONS true
+#endif
+#ifndef OPTPARSE_SUBCOMMANDS
 #define OPTPARSE_SUBCOMMANDS true
+#endif
+#ifndef OPTPARSE_ATTACHED_OPTION_ARGUMENTS
 #define OPTPARSE_ATTACHED_OPTION_ARGUMENTS true
+#endif
+#ifndef OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
 #define OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS true
+#endif
+#ifndef OPTPARSE_HIDDEN_OPTIONS
 #define OPTPARSE_HIDDEN_OPTIONS true
+#endif
+#ifndef OPTPARSE_LIST_SUPPORT
 #define OPTPARSE_LIST_SUPPORT true
+#endif
+#ifndef OPTPARSE_FLOATING_POINT_SUPPORT
 #define OPTPARSE_FLOATING_POINT_SUPPORT true
+#endif
+#ifndef OPTPARSE_C99_INTEGER_TYPES_SUPPORT
 #define OPTPARSE_C99_INTEGER_TYPES_SUPPORT true
+#endif
 
 // Indentation width, in characters.
 // Default value: 2
