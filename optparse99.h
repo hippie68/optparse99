@@ -136,7 +136,8 @@ SOFTWARE.
 #define OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX 8
 #endif
 
-// The size of the buffer used for printing functionality such as printing help and usage.
+// The size of the buffer used for printing functionality such as printing help
+// and usage.
 // Default value: 1024
 #ifndef OPTPARSE_PRINT_BUFFER_SIZE
 #define OPTPARSE_PRINT_BUFFER_SIZE 1024
