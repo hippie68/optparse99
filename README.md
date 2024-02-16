@@ -245,7 +245,8 @@ Structure member          | Description
 `.group`                  | Options that share the same group value are treated as mutually exclusive.
 `.hidden`                 | If true, the option won't be displayed in the help screen.
 `.description`            | The option's description, whether short or in-depth.
-* At least one of them must be specified.
+
+\*At least one of them must be specified.
 
 ### Allowed values for .arg_data_type
 
