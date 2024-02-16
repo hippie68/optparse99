@@ -100,19 +100,19 @@ SOFTWARE.
 #define OPTPARSE_HELP_WORD_WRAP true
 #endif
 
-// Style used for automatic usage generation
+// Style used for automatic usage generation.
 // Default value: 0
 #ifndef OPTPARSE_HELP_USAGE_STYLE
 #define OPTPARSE_HELP_USAGE_STYLE 0 // 0: short, 1: verbose
 #endif
 
-// Placeholder string to be displayed if OPTPARSE_HELP_USAGE_STYLE is 0
+// Placeholder string to be displayed if OPTPARSE_HELP_USAGE_STYLE is 0.
 // Default value: "OPTIONS"
 #ifndef OPTPARSE_HELP_USAGE_OPTIONS_STRING
 #define OPTPARSE_HELP_USAGE_OPTIONS_STRING "OPTIONS"
 #endif
 
-// The help screen's letter case
+// The help screen's letter case.
 // Default value: 0
 #ifndef OPTPARSE_HELP_LETTER_CASE
 #define OPTPARSE_HELP_LETTER_CASE 0 // 0: capitalized, 1: lower, 2: upper
