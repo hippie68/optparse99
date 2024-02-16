@@ -35,30 +35,14 @@ SOFTWARE.
 
 /// Customizable preprocessor directives ---------------------------------------
 
-#ifndef OPTPARSE_LONG_OPTIONS
-#define OPTPARSE_LONG_OPTIONS true
-#endif
-#ifndef OPTPARSE_SUBCOMMANDS
-#define OPTPARSE_SUBCOMMANDS true
-#endif
-#ifndef OPTPARSE_ATTACHED_OPTION_ARGUMENTS
-#define OPTPARSE_ATTACHED_OPTION_ARGUMENTS true
-#endif
-#ifndef OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
-#define OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS true
-#endif
-#ifndef OPTPARSE_HIDDEN_OPTIONS
-#define OPTPARSE_HIDDEN_OPTIONS true
-#endif
-#ifndef OPTPARSE_LIST_SUPPORT
-#define OPTPARSE_LIST_SUPPORT true
-#endif
-#ifndef OPTPARSE_FLOATING_POINT_SUPPORT
-#define OPTPARSE_FLOATING_POINT_SUPPORT true
-#endif
-#ifndef OPTPARSE_C99_INTEGER_TYPES_SUPPORT
-#define OPTPARSE_C99_INTEGER_TYPES_SUPPORT true
-#endif
+//#define OPTPARSE_LONG_OPTIONS true
+//#define OPTPARSE_SUBCOMMANDS true
+//#define OPTPARSE_ATTACHED_OPTION_ARGUMENTS true
+//#define OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS true
+//#define OPTPARSE_HIDDEN_OPTIONS true
+//#define OPTPARSE_LIST_SUPPORT true
+//#define OPTPARSE_FLOATING_POINT_SUPPORT true
+//#define OPTPARSE_C99_INTEGER_TYPES_SUPPORT true
 
 // Indentation width, in characters.
 // Default value: 2
@@ -102,6 +86,14 @@ SOFTWARE.
 // Prints the currently active command's help screen if there's a parsing error.
 // Default value: true
 //#define OPTPARSE_PRINT_HELP_ON_ERROR true
+
+// The maximum amount of groups for mutually exclusive options.
+// Default value: 8
+//#define OPT_OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX 8
+
+// The size of the buffer used for printing functionality such as printing help and usage.
+// Default value: 1024
+//#define OPT_OPTPARSE_PRINT_BUFFER_SIZE 1024
 
 /// Option structure -----------------------------------------------------------
 
