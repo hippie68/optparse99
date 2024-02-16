@@ -28,33 +28,32 @@ SOFTWARE.
 
 #include "optparse99.h"
 
-#include <assert.h>
-#include <ctype.h>
-#include <errno.h>
-#if OPTPARSE_FLOATING_POINT_SUPPORT
-#include <float.h>
-#endif
-#include <limits.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stddef.h>
-#if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
-#include <stdint.h>
-#endif
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-// These can be arbitrarily changed.
-#ifndef OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX
-#define OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX 8
-#endif
-#ifndef OPTPARSE_PRINT_BUFFER_SIZE
-#define OPTPARSE_PRINT_BUFFER_SIZE 1024
-#endif
-
-// Create default settings unless they are overridden via optparse.h or
+// Create default settings unless they are overridden via optparse99.h or
 // compiler options.
+#ifndef OPTPARSE_LONG_OPTIONS
+#define OPTPARSE_LONG_OPTIONS true
+#endif
+#ifndef OPTPARSE_SUBCOMMANDS
+#define OPTPARSE_SUBCOMMANDS true
+#endif
+#ifndef OPTPARSE_ATTACHED_OPTION_ARGUMENTS
+#define OPTPARSE_ATTACHED_OPTION_ARGUMENTS true
+#endif
+#ifndef OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
+#define OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS true
+#endif
+#ifndef OPTPARSE_HIDDEN_OPTIONS
+#define OPTPARSE_HIDDEN_OPTIONS true
+#endif
+#ifndef OPTPARSE_LIST_SUPPORT
+#define OPTPARSE_LIST_SUPPORT true
+#endif
+#ifndef OPTPARSE_FLOATING_POINT_SUPPORT
+#define OPTPARSE_FLOATING_POINT_SUPPORT true
+#endif
+#ifndef OPTPARSE_C99_INTEGER_TYPES_SUPPORT
+#define OPTPARSE_C99_INTEGER_TYPES_SUPPORT true
+#endif
 #ifndef OPTPARSE_HELP_INDENTATION_WIDTH
 #define OPTPARSE_HELP_INDENTATION_WIDTH 2
 #endif
@@ -85,6 +84,29 @@ SOFTWARE.
 #ifndef OPTPARSE_PRINT_HELP_ON_ERROR
 #define OPTPARSE_PRINT_HELP_ON_ERROR true
 #endif
+#ifndef OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX
+#define OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX 8
+#endif
+#ifndef OPTPARSE_PRINT_BUFFER_SIZE
+#define OPTPARSE_PRINT_BUFFER_SIZE 1024
+#endif
+
+#include <assert.h>
+#include <ctype.h>
+#include <errno.h>
+#if OPTPARSE_FLOATING_POINT_SUPPORT
+#include <float.h>
+#endif
+#include <limits.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#if OPTPARSE_C99_INTEGER_TYPES_SUPPORT
+#include <stdint.h>
+#endif
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // Global variables
 static struct optparse_cmd *optparse_main_cmd; // The command tree's root.
