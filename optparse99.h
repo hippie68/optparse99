@@ -35,57 +35,113 @@ SOFTWARE.
 
 /// Customizable preprocessor directives ---------------------------------------
 
+#ifndef OPTPARSE_LONG_OPTIONS
 #define OPTPARSE_LONG_OPTIONS true
+#endif
+
+#ifndef OPTPARSE_SUBCOMMANDS
 #define OPTPARSE_SUBCOMMANDS true
+#endif
+
+#ifndef OPTPARSE_ATTACHED_OPTION_ARGUMENTS
 #define OPTPARSE_ATTACHED_OPTION_ARGUMENTS true
+#endif
+
+#ifndef OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS
 #define OPTPARSE_MUTUALLY_EXCLUSIVE_OPTIONS true
+#endif
+
+#ifndef OPTPARSE_HIDDEN_OPTIONS
 #define OPTPARSE_HIDDEN_OPTIONS true
+#endif
+
+#ifndef OPTPARSE_LIST_SUPPORT
 #define OPTPARSE_LIST_SUPPORT true
+#endif
+
+#ifndef OPTPARSE_FLOATING_POINT_SUPPORT
 #define OPTPARSE_FLOATING_POINT_SUPPORT true
+#endif
+
+#ifndef OPTPARSE_C99_INTEGER_TYPES_SUPPORT
 #define OPTPARSE_C99_INTEGER_TYPES_SUPPORT true
+#endif
 
 // Indentation width, in characters.
 // Default value: 2
-//#define OPTPARSE_HELP_INDENTATION_WIDTH 2
+#ifndef OPTPARSE_HELP_INDENTATION_WIDTH
+#define OPTPARSE_HELP_INDENTATION_WIDTH 2
+#endif
 
 // Maximum distance between the screen's left edge and option descriptions.
 // Default value: 32
-//#define OPTPARSE_HELP_MAX_DIVIDER_WIDTH 32
+#ifndef OPTPARSE_HELP_MAX_DIVIDER_WIDTH
+#define OPTPARSE_HELP_MAX_DIVIDER_WIDTH 32
+#endif
 
 // Defines how a description is printed if preceeding text is longer than
 // OPTPARSE_HELP_MAX_DIVIDER_WIDTH.
 // true: print description on the same line, after a single indentation
 // false: print description on a separate line
 // Default value: true
-//#define OPTPARSE_HELP_FLOATING_DESCRIPTIONS true
+#ifndef OPTPARSE_HELP_FLOATING_DESCRIPTIONS
+#define OPTPARSE_HELP_FLOATING_DESCRIPTIONS true
+#endif
 
 // Maximum line width for word wrapping.
 // Default value: 80
-//#define OPTPARSE_HELP_MAX_LINE_WIDTH 80
+#ifndef OPTPARSE_HELP_MAX_LINE_WIDTH
+#define OPTPARSE_HELP_MAX_LINE_WIDTH 80
+#endif
 
 // Enables word wrap for lines longer than OPTPARSE_HELP_MAX_LINE_WIDTH.
 // Default value: true
-//#define OPTPARSE_HELP_WORD_WRAP true
+#ifndef OPTPARSE_HELP_WORD_WRAP
+#define OPTPARSE_HELP_WORD_WRAP true
+#endif
 
-// Style used for automatic usage generation
+// Style used for automatic usage generation.
 // Default value: 0
-//#define OPTPARSE_HELP_USAGE_STYLE 0 // 0: short, 1: verbose
+#ifndef OPTPARSE_HELP_USAGE_STYLE
+#define OPTPARSE_HELP_USAGE_STYLE 0 // 0: short, 1: verbose
+#endif
 
-// Placeholder string to be displayed if OPTPARSE_HELP_USAGE_STYLE is 0
+// Placeholder string to be displayed if OPTPARSE_HELP_USAGE_STYLE is 0.
 // Default value: "OPTIONS"
-//#define OPTPARSE_HELP_USAGE_OPTIONS_STRING "OPTIONS"
+#ifndef OPTPARSE_HELP_USAGE_OPTIONS_STRING
+#define OPTPARSE_HELP_USAGE_OPTIONS_STRING "OPTIONS"
+#endif
 
-// The help screen's letter case
+// The help screen's letter case.
 // Default value: 0
-//#define OPTPARSE_HELP_LETTER_CASE 0 // 0: capitalized, 1: lower, 2: upper
+#ifndef OPTPARSE_HELP_LETTER_CASE
+#define OPTPARSE_HELP_LETTER_CASE 0 // 0: capitalized, 1: lower, 2: upper
+#endif
 
 // Makes long options stay in a separate column even if there's no short option.
 // Default value: true
-//#define OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS true
+#ifndef OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS
+#define OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS true
+#endif
 
 // Prints the currently active command's help screen if there's a parsing error.
 // Default value: true
-//#define OPTPARSE_PRINT_HELP_ON_ERROR true
+#ifndef OPTPARSE_PRINT_HELP_ON_ERROR
+#define OPTPARSE_PRINT_HELP_ON_ERROR true
+#endif
+
+// The maximum amount of groups for mutually exclusive options.
+// Default value: 8
+#ifndef OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX
+#define OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX 8
+#endif
+
+// The size of the buffer used for printing functionality such as printing help
+// and usage.
+// Default value: 1024
+#ifndef OPTPARSE_PRINT_BUFFER_SIZE
+#define OPTPARSE_PRINT_BUFFER_SIZE 1024
+#endif
 
 /// Option structure -----------------------------------------------------------
 

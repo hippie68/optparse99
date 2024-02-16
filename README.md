@@ -445,6 +445,8 @@ Macro                                 | Default value | Description
 `OPTPARSE_HELP_FLOATING_DESCRIPTIONS` | 1 (boolean)   | Defines how a description is to be printed if an option is longer than OPTPARSE_HELP_MAX_DIVIDER_WIDTH; 0: print description on a separate line, 1: print description on the same line, after a single indentation.
 `OPTPARSE_HELP_UNIQUE_COLUMN_FOR_LONG_OPTIONS` | 1 (boolean) | Makes long options stay in a separate column even if there's no short option.
 `OPTPARSE_PRINT_HELP_ON_ERROR`        | 1 (boolean)   | Prints the currently active command's help screen if there's a parsing error.
+`OPTPARSE_MUTUALLY_EXCLUSIVE_GROUPS_MAX`       | 8             | The maximum amount of groups for matually exclusive options.
+`OPTPARSE_PRINT_BUFFER_SIZE`                   | 1024          | The size of the buffer used for printing functionality of optparse99 such as printing help and usage.
 
 By disabling a feature, related code will not be compiled and structure members that are related to that feature will no longer be recognized.
 
