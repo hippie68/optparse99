@@ -66,7 +66,7 @@ static void optparse_error(char *fmt, ...)
     vfprintf(stderr, fmt, ap);
     va_end(ap);
 #if OPTPARSE_PRINT_HELP_ON_ERROR
-    optparse_fprint_help(stderr, EXIT_FAILURE);
+    optparse_fprint_help(stderr, EXIT_FAILURE, false);
 #endif
     exit(EXIT_FAILURE);
 }
@@ -836,7 +836,14 @@ static void blockprint(FILE *stream, char *str, int first_line_indent,
         if (first_line_printed) {
             fprintf(stream, "%*s", indent, "");
         } else {
-            width = end - first_line_indent;
+            if (first_line_indent > end) {
+                // Indentation exceeds block width
+                // Intentionally break into new line
+                width = 0;
+            } else {
+                // Indentation does not exceed block width
+                width = end - first_line_indent;
+            }
         }
 
         int n = 0; // Number of characters to be printed on the current line
@@ -1264,7 +1271,7 @@ static void print_subcommands(FILE *stream, struct optparse_cmd subcommands[])
 // Prints a command's complete help information: about, usage, description,
 // options, subcommands.
 // cmd_chain: a NULL-terminated array that contains a valid command chain
-static void print_help(FILE *stream, struct optparse_cmd *cmd, int exit_status)
+static void print_help(FILE *stream, struct optparse_cmd *cmd, int exit_status, bool noExit)
 {
     if (stream != stderr && cmd->about) {
         blockprint(stream, cmd->about, 0, 0, OPTPARSE_HELP_MAX_LINE_WIDTH);
@@ -1306,7 +1313,8 @@ static void print_help(FILE *stream, struct optparse_cmd *cmd, int exit_status)
     }
 #endif
 
-    exit(exit_status);
+    if (!noExit)
+        exit(exit_status);
 }
 
 #if OPTPARSE_SUBCOMMANDS
@@ -1440,23 +1448,23 @@ char *optparse_unshift(void)
 }
 
 // Prints the currently active command's help information.
-void optparse_print_help(void)
+void optparse_print_help(bool noExit)
 {
 #if OPTPARSE_SUBCOMMANDS
-    print_help(help_stream, active_cmd, EXIT_SUCCESS);
+    print_help(help_stream, active_cmd, EXIT_SUCCESS, noExit);
 #else
-    print_help(help_stream, optparse_main_cmd, EXIT_SUCCESS);
+    print_help(help_stream, optparse_main_cmd, EXIT_SUCCESS, noExit);
 #endif
 }
 
 // Same as optparse_print_help, but prints to the specified stream. Exits with
 // the provided exit status.
-void optparse_fprint_help(FILE *stream, int exit_status)
+void optparse_fprint_help(FILE *stream, int exit_status, bool noExit)
 {
 #if OPTPARSE_SUBCOMMANDS
-    print_help(stream, active_cmd, exit_status);
+    print_help(stream, active_cmd, exit_status, noExit);
 #else
-    print_help(stream, optparse_main_cmd, exit_status);
+    print_help(stream, optparse_main_cmd, exit_status, noExit);
 #endif
 }
 
@@ -1471,18 +1479,27 @@ void optparse_fprint_usage(FILE *stream)
 }
 
 #if OPTPARSE_SUBCOMMANDS
-// Prints a subcommand's help by parsing remaining operands. To be used as a
-// command structure's .function member.
-void optparse_print_help_subcmd(int argc, char **argv)
-{
+static inline void __optparse_print_help_subcmd(int argc, char **argv, bool noExit) {
     (void) argc; // To avoid compilers complaining about "unused parameter".
     argv++; // To ignore the program's file name
     if (*argv) {
         struct optparse_cmd *subcmd = read_cmd_chain(optparse_main_cmd, argv);
-        print_help(stdout, subcmd, EXIT_SUCCESS);
+        print_help(stdout, subcmd, EXIT_SUCCESS, noExit);
     } else {
-        print_help(stdout, optparse_main_cmd, EXIT_SUCCESS);
+        print_help(stdout, optparse_main_cmd, EXIT_SUCCESS, noExit);
     }
+}
+
+// Prints a subcommand's help by parsing remaining operands. To be used as a
+// command structure's .function member.
+void optparse_print_help_subcmd(int argc, char **argv)
+{
+    __optparse_print_help_subcmd(argc, argv, false);
+}
+
+void optparse_print_help_subcmd_noexit(int argc, char **argv)
+{
+    __optparse_print_help_subcmd(argc, argv, true);
 }
 #endif
 

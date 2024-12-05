@@ -46,7 +46,7 @@ target_compile_features(optparse99
 set_target_properties(optparse99
     PROPERTIES
         C_STANDARD 99
-        C_STANDARD_REQUIRED 99)
+        C_STANDARD_REQUIRED ON)
 
 target_compile_definitions(optparse99
     PUBLIC

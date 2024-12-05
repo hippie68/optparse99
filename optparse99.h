@@ -298,11 +298,11 @@ void optparse_parse(struct optparse_cmd *cmd, int *argc, char ***argv);
 // Prints the currently active command's full help information, listing
 // available options and their descriptions. It can be called manuall or through
 // an option's function member. Exits with exit status EXIT_SUCCESS.
-void optparse_print_help(void);
+void optparse_print_help(bool noExit);
 
 // Same as optparse_print_help, but can only be called manually. It prints to
 // the specified stream and exits with the provided exit status.
-void optparse_fprint_help(FILE *stream, int exit_status);
+void optparse_fprint_help(FILE *stream, int exit_status, bool noExit);
 
 // Prints the currently active command's usage information only.
 void optparse_fprint_usage(FILE *stream);
@@ -311,6 +311,8 @@ void optparse_fprint_usage(FILE *stream);
 // Prints a subcommand's help by parsing remaining operands. To be used as a
 // command structure's .function member.
 void optparse_print_help_subcmd(int argc, char **argv);
+
+void optparse_print_help_subcmd_noexit(int argc, char **argv);
 #endif
 
 // Advances the parser's internal index and returns the next command line
